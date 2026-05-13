@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { MASTER_SYSTEM_PROMPT } from '@/prompts/system';
 import type { Brief } from '@/app/studio/types';
 
@@ -209,9 +209,93 @@ SECTION: ${sectionId} — 150-200 words.
 Use an appropriate H2. Write only this section. Do not introduce the blog.`;
 }
 
+function applyFindReplace(
+  html: string,
+  pairs: { find: string; replace: string }[]
+): string {
+  let result = html;
+  for (const { find, replace } of pairs) {
+    if (find && result.includes(find)) {
+      result = result.split(find).join(replace);
+    }
+  }
+  return result;
+}
+
+function extractJSONArray(raw: string): { find: string; replace: string }[] {
+  const trimmed = raw.replace(/```json|```/g, '').trim();
+  try { return JSON.parse(trimmed); } catch { /* fall through */ }
+  const start = trimmed.indexOf('[');
+  const end = trimmed.lastIndexOf(']');
+  if (start !== -1 && end !== -1) {
+    try { return JSON.parse(trimmed.slice(start, end + 1)); } catch { /* fall through */ }
+  }
+  return [];
+}
+
 export async function POST(req: NextRequest) {
   const { sectionId, brief, toolName, blogType, existingSectionHtml = '', _note } = await req.json();
 
+  // UPDATE MODE — non-streaming: get find/replace pairs, apply to existing HTML
+  if (sectionId === 'full-update' && existingSectionHtml) {
+    const prompt = buildSectionPrompt(sectionId, brief, toolName, blogType, existingSectionHtml, _note);
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY!,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 800,
+        stream: false,
+        system: 'You are a fact-checker. Return only valid JSON arrays. No prose.',
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      return NextResponse.json({ error: err }, { status: 500 });
+    }
+
+    const data = await res.json();
+    const raw = data.content
+      .filter((b: { type: string }) => b.type === 'text')
+      .map((b: { text: string }) => b.text)
+      .join('');
+
+    const pairs = extractJSONArray(raw);
+    const updatedHtml = pairs.length > 0
+      ? applyFindReplace(existingSectionHtml, pairs)
+      : existingSectionHtml;
+
+    // Stream the result back as SSE so client handles it the same way
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        const chunks = updatedHtml.match(/.{1,200}/gs) ?? [updatedHtml];
+        for (const chunk of chunks) {
+          const event = JSON.stringify({ type: 'content_block_delta', delta: { type: 'text_delta', text: chunk } });
+          controller.enqueue(encoder.encode(`data: ${event}
+
+`));
+        }
+        controller.enqueue(encoder.encode('data: [DONE]
+
+'));
+        controller.close();
+      }
+    });
+
+    return new Response(stream, {
+      headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' },
+    });
+  }
+
+  // NEW BLOG MODE — streaming section by section
   const prompt = buildSectionPrompt(sectionId, brief, toolName, blogType, existingSectionHtml, _note);
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -223,9 +307,9 @@ export async function POST(req: NextRequest) {
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: sectionId === 'full-update' ? 8000 : 1200,
+      max_tokens: 1200,
       stream: true,
-      system: sectionId === 'full-update' ? 'You are a surgical HTML editor. Return complete HTML only.' : MASTER_SYSTEM_PROMPT,
+      system: MASTER_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: prompt }],
     }),
   });
@@ -236,9 +320,6 @@ export async function POST(req: NextRequest) {
   }
 
   return new Response(res.body, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-    },
+    headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' },
   });
 }
