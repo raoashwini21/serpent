@@ -220,12 +220,30 @@ function extractSectionHtml(bodyHtml: string, sectionId: string): string {
 interface ReviewScreenProps {
   sections: SectionDraft[];
   brief: Brief;
+  mode: 'new' | 'update';
+  blogType: string;
   onEdit: (id: string, html: string) => void;
   onRegenerate: (id: string, note: string) => void;
   onBack: () => void;
   onPublish: () => void;
   pushStatus: 'idle' | 'pushing' | 'done' | 'error';
   pushResult: { slug: string; itemId: string } | null;
+}
+
+// Pricing table — only for review/comparison blogs with confirmed pricing data
+function buildPricingTable(confirmedPricing: string): string {
+  if (!confirmedPricing || confirmedPricing === 'Contact for pricing') return '';
+  const lines = confirmedPricing.split(',').map(s => s.trim()).filter(Boolean);
+  if (lines.length < 2) return '';
+  const rows = lines.map(line => {
+    const match = line.match(/^(.+?)\s+\$?([\d.]+)\/mo/i);
+    if (!match) return `<tr><td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-size:14px">${line}</td><td></td></tr>`;
+    return `<tr><td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-size:14px;font-weight:500">${match[1]}</td><td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-size:14px;color:#6C5CE7;font-weight:600">$${match[2]}/mo</td></tr>`;
+  }).join('');
+  return `<table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin:16px 0;font-family:inherit">
+<thead><tr style="background:#6C5CE7"><th style="padding:10px 14px;text-align:left;color:#fff;font-size:13px;font-weight:600">Plan</th><th style="padding:10px 14px;text-align:left;color:#fff;font-size:13px;font-weight:600">Price</th></tr></thead>
+<tbody>${rows}</tbody>
+</table>`;
 }
 
 function htmlToText(html: string): string {
@@ -274,54 +292,74 @@ function textToHtml(text: string): string {
 
 function ReviewSection({
   section,
+  mode,
   onEdit,
   onRegenerate,
 }: {
   section: SectionDraft;
+  mode: 'new' | 'update';
   onEdit: (id: string, html: string) => void;
   onRegenerate: (id: string, note: string) => void;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [editText, setEditText] = useState('');
+  const editRef = useRef<HTMLDivElement>(null);
+  const [isEditing, setIsEditing] = useState(false);
   const [note, setNote] = useState('');
 
   const startEdit = () => {
-    setEditText(htmlToText(section.html));
-    setEditing(true);
+    setIsEditing(true);
+    setTimeout(() => {
+      if (editRef.current) {
+        editRef.current.innerHTML = section.html;
+        editRef.current.focus();
+        const range = document.createRange();
+        range.selectNodeContents(editRef.current);
+        range.collapse(false);
+        window.getSelection()?.removeAllRanges();
+        window.getSelection()?.addRange(range);
+      }
+    }, 30);
   };
 
   const saveEdit = () => {
-    onEdit(section.id, textToHtml(editText));
-    setEditing(false);
+    if (editRef.current) {
+      onEdit(section.id, editRef.current.innerHTML);
+    }
+    setIsEditing(false);
+  };
+
+  const addLink = () => {
+    const url = window.prompt('Enter URL:');
+    if (url) document.execCommand('createLink', false, url);
   };
 
   return (
     <div className="mb-8 border-b border-gray-100 pb-8 last:border-0">
-      <div className="flex items-center gap-2 mb-3">
+      <div className="flex items-center gap-2 mb-2">
         <span className="text-xs font-medium text-gray-400 uppercase tracking-wide flex-1">
           {SECTION_LABELS[section.id] ?? section.id}
         </span>
-        {!editing && (
+        {!isEditing ? (
           <button onClick={startEdit} className="text-xs px-3 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50">
             Edit
           </button>
+        ) : (
+          <div className="flex items-center gap-1">
+            <button onClick={() => document.execCommand('bold')} className="text-xs px-2 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50 font-bold">B</button>
+            <button onClick={() => document.execCommand('italic')} className="text-xs px-2 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50 italic">I</button>
+            <button onClick={addLink} className="text-xs px-2 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50">🔗</button>
+            <button onClick={saveEdit} className="text-xs px-3 py-1 rounded bg-gray-900 text-white hover:bg-gray-800 ml-1">Save</button>
+            <button onClick={() => setIsEditing(false)} className="text-xs px-2 py-1 rounded border border-gray-200 hover:bg-gray-50">Cancel</button>
+          </div>
         )}
       </div>
 
-      {editing ? (
-        <div>
-          <textarea
-            className="w-full p-3 text-sm bg-gray-50 border border-gray-200 rounded-lg resize-none leading-relaxed"
-            rows={Math.max(8, editText.split('\n').length + 2)}
-            value={editText}
-            onChange={e => setEditText(e.target.value)}
-            style={{ fontFamily: 'inherit' }}
-          />
-          <div className="flex gap-2 mt-2">
-            <button onClick={saveEdit} className="text-xs px-3 py-1.5 rounded bg-gray-900 text-white hover:bg-gray-800">Save</button>
-            <button onClick={() => setEditing(false)} className="text-xs px-3 py-1.5 rounded border border-gray-200 hover:bg-gray-50">Cancel</button>
-          </div>
-        </div>
+      {isEditing ? (
+        <div
+          ref={editRef}
+          contentEditable
+          suppressContentEditableWarning
+          className="prose prose-gray max-w-none text-sm leading-relaxed border border-blue-200 rounded-lg p-3 bg-blue-50 outline-none min-h-24"
+        />
       ) : (
         <div
           className="prose prose-gray max-w-none text-sm leading-relaxed"
@@ -329,7 +367,7 @@ function ReviewSection({
         />
       )}
 
-      {!editing && (
+      {!isEditing && (
         <div className="flex gap-2 mt-3">
           <input
             type="text"
@@ -351,46 +389,103 @@ function ReviewSection({
   );
 }
 
-function ReviewScreen({ sections, brief, onEdit, onRegenerate, onBack, onPublish, pushStatus, pushResult }: ReviewScreenProps) {
+function ReviewScreen({ sections, brief, mode, blogType, onEdit, onRegenerate, onBack, onPublish, pushStatus, pushResult }: ReviewScreenProps) {
+  const [copied, setCopied] = useState(false);
+
+  const copyForGoogleDocs = async () => {
+    // Inject pricing table into pricing section if review/comparison
+    const needsTable = ['tool-review', 'tool-comparison'].includes(blogType);
+    const table = needsTable ? buildPricingTable(brief.confirmedPricing) : '';
+
+    const fullHtml = sections
+      .filter(s => (s.status === 'done' || s.status === 'skipped') && s.html)
+      .map(s => {
+        let html = s.html;
+        if (s.id === 'pricing' && table) html += table;
+        return html;
+      })
+      .join('\n');
+
+    const blob = new Blob(
+      [`<html><body><h1>${brief.h1}</h1>${fullHtml}</body></html>`],
+      { type: 'text/html' }
+    );
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'text/html': blob })
+      ]);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // Fallback: copy plain text
+      const text = `${brief.h1}\n\n` + sections
+        .filter(s => (s.status === 'done' || s.status === 'skipped') && s.html)
+        .map(s => s.html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim())
+        .join('\n\n');
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen bg-white">
       <div className="flex items-center gap-3 px-6 py-3 border-b border-gray-200 bg-white sticky top-0 z-10">
         <button onClick={onBack} className="text-sm text-gray-400 hover:text-gray-600">← Back</button>
-        <span className="text-sm font-semibold text-gray-800 flex-1">{brief.h1}</span>
-        <span className="text-xs text-gray-400">{sections.filter(s => s.status === 'done').length} sections</span>
-        {pushStatus === 'idle' && (
+        <span className="text-sm font-semibold text-gray-800 flex-1 truncate">{brief.h1}</span>
+        <span className="text-xs text-gray-400 flex-shrink-0">{sections.filter(s => s.status === 'done' || s.status === 'skipped').length} sections</span>
+
+        {mode === 'new' ? (
           <button
-            onClick={onPublish}
-            className="px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800"
+            onClick={copyForGoogleDocs}
+            className="px-4 py-2 text-sm rounded-lg border border-gray-200 bg-white hover:bg-gray-50 flex-shrink-0"
           >
-            Push to Webflow as draft
+            {copied ? '✓ Copied!' : 'Copy for Google Docs'}
           </button>
-        )}
-        {pushStatus === 'pushing' && (
-          <span className="text-sm text-gray-500 animate-pulse">Pushing...</span>
-        )}
-        {pushStatus === 'done' && pushResult && (
-          <span className="text-sm text-green-600">Published — /{pushResult.slug}</span>
-        )}
-        {pushStatus === 'error' && (
-          <span className="text-sm text-red-500">Push failed</span>
+        ) : (
+          <>
+            {pushStatus === 'idle' && (
+              <button onClick={onPublish} className="px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 flex-shrink-0">
+                Push to Webflow as draft
+              </button>
+            )}
+            {pushStatus === 'pushing' && <span className="text-sm text-gray-500 animate-pulse">Pushing...</span>}
+            {pushStatus === 'done' && pushResult && <span className="text-sm text-green-600">Draft saved — /{pushResult.slug}</span>}
+            {pushStatus === 'error' && <span className="text-sm text-red-500">Push failed</span>}
+          </>
         )}
       </div>
 
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-6 py-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-8 leading-tight">{brief.h1}</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2 leading-tight">{brief.h1}</h1>
+          <p className="text-xs text-gray-400 mb-8">
+            {mode === 'new'
+              ? 'Click "Copy for Google Docs" to paste with full formatting intact.'
+              : 'Edit any section inline. Add links with the 🔗 button. Push when ready.'}
+          </p>
           {sections
-            .filter(s => s.status === 'done' && s.html)
+            .filter(s => (s.status === 'done' || s.status === 'skipped') && s.html)
             .map(s => (
               <ReviewSection
                 key={s.id}
                 section={s}
+                mode={mode}
                 onEdit={onEdit}
                 onRegenerate={onRegenerate}
               />
             ))
           }
+          {mode === 'new' && (
+            <div className="mt-8 pt-6 border-t border-gray-100 flex justify-center">
+              <button
+                onClick={copyForGoogleDocs}
+                className="px-6 py-3 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800"
+              >
+                {copied ? '✓ Copied with formatting!' : 'Copy full blog for Google Docs'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -880,6 +975,8 @@ export default function StudioPage() {
       <ReviewScreen
         sections={sections}
         brief={brief}
+        mode={mode}
+        blogType={blogType}
         onEdit={editSection}
         onRegenerate={regenerateSection}
         onBack={() => setReviewing(false)}
