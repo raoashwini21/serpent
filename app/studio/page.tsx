@@ -923,12 +923,19 @@ export default function StudioPage() {
           }
         }
 
-        setSections(prev => prev.map(s =>
-          s.id === sectionId ? { ...s, status: 'done', html: accumulated } : s
-        ));
+        // If section came back empty, mark as pending so writer knows
+        if (!accumulated.trim()) {
+          setSections(prev => prev.map(s =>
+            s.id === sectionId ? { ...s, status: 'pending', flagReason: 'Returned empty — regenerate with a note' } : s
+          ));
+        } else {
+          setSections(prev => prev.map(s =>
+            s.id === sectionId ? { ...s, status: 'done', html: accumulated } : s
+          ));
+        }
       } catch (e) {
         setSections(prev => prev.map(s =>
-          s.id === sectionId ? { ...s, status: 'pending' } : s
+          s.id === sectionId ? { ...s, status: 'pending', flagReason: 'Failed — click regenerate' } : s
         ));
         setError(`Section "${sectionId}" failed: ${e instanceof Error ? e.message : 'unknown'}`);
       }
@@ -1287,17 +1294,43 @@ export default function StudioPage() {
                       </div>
                     ) : (
                       <>
-                        <div className="text-xs font-medium text-gray-700 mb-2">H1: {brief.h1}</div>
-                        <div className="text-xs text-gray-500 mb-2 font-medium">H2 changes:</div>
-                        {brief.h2Changes.map((c, i) => <H2DiffRow key={i} change={c} index={i} />)}
-                        <div className="text-xs text-gray-500 mt-2">
-                          <span className="font-medium">Keywords: </span>{brief.targetKeywords.join(', ')}
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          <span className="font-medium">SalesRobot angle: </span>{brief.salesRobotAngle}
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          <span className="font-medium">Pricing: </span>{brief.confirmedPricing}
+                        <div className="space-y-3">
+                          <div>
+                            <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Title</div>
+                            <div className="text-xs font-medium text-gray-800">{brief.h1}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Target keywords</div>
+                            <div className="flex flex-wrap gap-1">
+                              {brief.targetKeywords.map((k, i) => (
+                                <span key={i} className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">{k}</span>
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Confirmed pricing</div>
+                            <div className="text-xs text-gray-700">{brief.confirmedPricing}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Confirmed features</div>
+                            <div className="text-xs text-gray-700">{(brief.confirmedFeatures ?? []).join(', ') || 'None found'}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Top user pain points</div>
+                            <div className="space-y-0.5">
+                              {(brief.topPainPoints ?? []).map((p, i) => (
+                                <div key={i} className="text-xs text-gray-700 flex gap-1.5"><span className="text-amber-500">•</span>{p}</div>
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">SalesRobot angle</div>
+                            <div className="text-xs text-gray-700">{brief.salesRobotAngle}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-400 uppercase tracking-wide mb-2">Heading changes</div>
+                            {brief.h2Changes.map((c, i) => <H2DiffRow key={i} change={c} index={i} />)}
+                          </div>
                         </div>
                       </>
                     )}
