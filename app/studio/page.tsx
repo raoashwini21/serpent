@@ -512,7 +512,7 @@ export default function StudioPage() {
   const [hasGsc, setHasGsc] = useState(false);
   const [brief, setBrief] = useState<Brief | null>(null);
   const [briefApproved, setBriefApproved] = useState(false);
-  // editingBrief state reserved for future inline brief editing
+  const [editingBrief, setEditingBrief] = useState(false);
   const [reviewing, setReviewing] = useState(false);
 
   const [sections, setSections] = useState<SectionDraft[]>([]);
@@ -1046,25 +1046,80 @@ export default function StudioPage() {
               {p4Status === 'done' && brief && !briefApproved && (
                 <>
                   <div className="px-3 py-2 bg-gray-50 border-t border-gray-100">
-                    <div className="text-xs font-medium text-gray-700 mb-2">H1: {brief.h1}</div>
-                    <div className="text-xs text-gray-500 mb-2 font-medium">H2 changes:</div>
-                    {brief.h2Changes.map((c, i) => <H2DiffRow key={i} change={c} index={i} />)}
-                    <div className="text-xs text-gray-500 mt-2">
-                      <span className="font-medium">Keywords: </span>{brief.targetKeywords.join(', ')}
-                    </div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      <span className="font-medium">SalesRobot angle: </span>{brief.salesRobotAngle}
-                    </div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      <span className="font-medium">Pricing: </span>{brief.confirmedPricing}
-                    </div>
+                    {editingBrief ? (
+                      <div className="space-y-2">
+                        <div>
+                          <label className="text-xs text-gray-400 mb-0.5 block">H1</label>
+                          <input
+                            className="w-full text-xs px-2 py-1.5 rounded border border-gray-200 bg-white"
+                            value={brief.h1}
+                            onChange={e => setBrief(b => b ? { ...b, h1: e.target.value } : b)}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-400 mb-0.5 block">Primary keyword</label>
+                          <input
+                            className="w-full text-xs px-2 py-1.5 rounded border border-gray-200 bg-white"
+                            value={brief.targetKeywords[0] ?? ''}
+                            onChange={e => setBrief(b => b ? { ...b, targetKeywords: [e.target.value, ...(b.targetKeywords.slice(1))] } : b)}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-400 mb-0.5 block">Confirmed pricing</label>
+                          <input
+                            className="w-full text-xs px-2 py-1.5 rounded border border-gray-200 bg-white"
+                            value={brief.confirmedPricing}
+                            onChange={e => setBrief(b => b ? { ...b, confirmedPricing: e.target.value } : b)}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-400 mb-0.5 block">SalesRobot angle</label>
+                          <textarea
+                            className="w-full text-xs px-2 py-1.5 rounded border border-gray-200 bg-white resize-none"
+                            rows={2}
+                            value={brief.salesRobotAngle}
+                            onChange={e => setBrief(b => b ? { ...b, salesRobotAngle: e.target.value } : b)}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-400 mb-1 block">H2 changes</label>
+                          {brief.h2Changes.map((c, i) => (
+                            <div key={i} className="mb-1.5">
+                              <input
+                                className="w-full text-xs px-2 py-1.5 rounded border border-gray-200 bg-white"
+                                value={c.next}
+                                onChange={e => setBrief(b => b ? {
+                                  ...b,
+                                  h2Changes: b.h2Changes.map((h, j) => j === i ? { ...h, next: e.target.value } : h)
+                                } : b)}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="text-xs font-medium text-gray-700 mb-2">H1: {brief.h1}</div>
+                        <div className="text-xs text-gray-500 mb-2 font-medium">H2 changes:</div>
+                        {brief.h2Changes.map((c, i) => <H2DiffRow key={i} change={c} index={i} />)}
+                        <div className="text-xs text-gray-500 mt-2">
+                          <span className="font-medium">Keywords: </span>{brief.targetKeywords.join(', ')}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          <span className="font-medium">SalesRobot angle: </span>{brief.salesRobotAngle}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          <span className="font-medium">Pricing: </span>{brief.confirmedPricing}
+                        </div>
+                      </>
+                    )}
                   </div>
                   <div className="flex gap-2 p-2 border-t border-gray-100">
                     <button
-                      onClick={() => {}}
+                      onClick={() => setEditingBrief(e => !e)}
                       className="text-xs px-3 py-1.5 rounded border border-gray-200 bg-white hover:bg-gray-50"
                     >
-                      Edit brief
+                      {editingBrief ? 'Done editing' : 'Edit brief'}
                     </button>
                     <button
                       onClick={approveBrief}
