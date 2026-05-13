@@ -1,7 +1,6 @@
-import { ContentBrief, KeywordData, ResearchBrief } from './types';
-import { generateFAQSchema, generateArticleSchema } from './seo/schema-generator';
-import { injectInternalLinks } from './links/internal-linker';
-import { injectExternalLinks } from './links/external-linker';
+// assembler.ts — placeholder for future use
+// The studio flow handles assembly directly in app/api/studio/push/route.ts
+export {};
 import { generateSlug } from './seo/url-generator';
 
 function stripHtml(html: string): string {
