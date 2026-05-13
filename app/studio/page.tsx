@@ -190,6 +190,187 @@ function SectionCard({
   );
 }
 
+
+interface ReviewScreenProps {
+  sections: SectionDraft[];
+  brief: Brief;
+  onEdit: (id: string, html: string) => void;
+  onRegenerate: (id: string, note: string) => void;
+  onBack: () => void;
+  onPublish: () => void;
+  pushStatus: 'idle' | 'pushing' | 'done' | 'error';
+  pushResult: { slug: string; itemId: string } | null;
+}
+
+function htmlToText(html: string): string {
+  return html
+    .replace(/<h1[^>]*>(.*?)<\/h1>/gi, '# $1\n\n')
+    .replace(/<h2[^>]*>(.*?)<\/h2>/gi, '## $1\n\n')
+    .replace(/<h3[^>]*>(.*?)<\/h3>/gi, '### $1\n\n')
+    .replace(/<strong>(.*?)<\/strong>/gi, '**$1**')
+    .replace(/<em>(.*?)<\/em>/gi, '_$1_')
+    .replace(/<li>(.*?)<\/li>/gi, '• $1\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function textToHtml(text: string): string {
+  const lines = text.split('\n');
+  let html = '';
+  let inUl = false;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) { if (inUl) { html += '</ul>\n'; inUl = false; } continue; }
+    if (trimmed.startsWith('# ')) { html += `<h1>${trimmed.slice(2)}</h1>\n`; }
+    else if (trimmed.startsWith('## ')) { html += `<h2>${trimmed.slice(3)}</h2>\n`; }
+    else if (trimmed.startsWith('### ')) { html += `<h3>${trimmed.slice(4)}</h3>\n`; }
+    else if (trimmed.startsWith('• ') || trimmed.startsWith('- ')) {
+      if (!inUl) { html += '<ul>\n'; inUl = true; }
+      html += `<li>${trimmed.slice(2).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/_(.*?)_/g, '<em>$1</em>')}</li>\n`;
+    } else {
+      if (inUl) { html += '</ul>\n'; inUl = false; }
+      const p = trimmed
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/_(.*?)_/g, '<em>$1</em>');
+      html += `<p>${p}</p>\n`;
+    }
+  }
+  if (inUl) html += '</ul>\n';
+  return html;
+}
+
+function ReviewSection({
+  section,
+  onEdit,
+  onRegenerate,
+}: {
+  section: SectionDraft;
+  onEdit: (id: string, html: string) => void;
+  onRegenerate: (id: string, note: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [editText, setEditText] = useState('');
+  const [note, setNote] = useState('');
+
+  const startEdit = () => {
+    setEditText(htmlToText(section.html));
+    setEditing(true);
+  };
+
+  const saveEdit = () => {
+    onEdit(section.id, textToHtml(editText));
+    setEditing(false);
+  };
+
+  return (
+    <div className="mb-8 border-b border-gray-100 pb-8 last:border-0">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-xs font-medium text-gray-400 uppercase tracking-wide flex-1">
+          {SECTION_LABELS[section.id] ?? section.id}
+        </span>
+        {!editing && (
+          <button onClick={startEdit} className="text-xs px-3 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50">
+            Edit
+          </button>
+        )}
+      </div>
+
+      {editing ? (
+        <div>
+          <textarea
+            className="w-full p-3 text-sm bg-gray-50 border border-gray-200 rounded-lg resize-none leading-relaxed"
+            rows={Math.max(8, editText.split('\n').length + 2)}
+            value={editText}
+            onChange={e => setEditText(e.target.value)}
+            style={{ fontFamily: 'inherit' }}
+          />
+          <div className="flex gap-2 mt-2">
+            <button onClick={saveEdit} className="text-xs px-3 py-1.5 rounded bg-gray-900 text-white hover:bg-gray-800">Save</button>
+            <button onClick={() => setEditing(false)} className="text-xs px-3 py-1.5 rounded border border-gray-200 hover:bg-gray-50">Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <div
+          className="prose prose-gray max-w-none text-sm leading-relaxed"
+          dangerouslySetInnerHTML={{ __html: section.html }}
+        />
+      )}
+
+      {!editing && (
+        <div className="flex gap-2 mt-3">
+          <input
+            type="text"
+            placeholder="Regenerate with note..."
+            value={note}
+            onChange={e => setNote(e.target.value)}
+            className="flex-1 text-xs px-3 py-1.5 rounded border border-gray-200 bg-white"
+            onKeyDown={e => { if (e.key === 'Enter' && note) { onRegenerate(section.id, note); setNote(''); } }}
+          />
+          <button
+            onClick={() => { onRegenerate(section.id, note); setNote(''); }}
+            className="text-xs px-3 py-1.5 rounded border border-gray-200 bg-white hover:bg-gray-50"
+          >
+            ↺ Regenerate
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReviewScreen({ sections, brief, onEdit, onRegenerate, onBack, onPublish, pushStatus, pushResult }: ReviewScreenProps) {
+  return (
+    <div className="flex flex-col h-screen bg-white">
+      <div className="flex items-center gap-3 px-6 py-3 border-b border-gray-200 bg-white sticky top-0 z-10">
+        <button onClick={onBack} className="text-sm text-gray-400 hover:text-gray-600">← Back</button>
+        <span className="text-sm font-semibold text-gray-800 flex-1">{brief.h1}</span>
+        <span className="text-xs text-gray-400">{sections.filter(s => s.status === 'done').length} sections</span>
+        {pushStatus === 'idle' && (
+          <button
+            onClick={onPublish}
+            className="px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800"
+          >
+            Push to Webflow as draft
+          </button>
+        )}
+        {pushStatus === 'pushing' && (
+          <span className="text-sm text-gray-500 animate-pulse">Pushing...</span>
+        )}
+        {pushStatus === 'done' && pushResult && (
+          <span className="text-sm text-green-600">Published — /{pushResult.slug}</span>
+        )}
+        {pushStatus === 'error' && (
+          <span className="text-sm text-red-500">Push failed</span>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-3xl mx-auto px-6 py-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-8 leading-tight">{brief.h1}</h1>
+          {sections
+            .filter(s => s.status === 'done' && s.html)
+            .map(s => (
+              <ReviewSection
+                key={s.id}
+                section={s}
+                onEdit={onEdit}
+                onRegenerate={onRegenerate}
+              />
+            ))
+          }
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function StudioPage() {
   const [toolName, setToolName] = useState('');
   const [blogType, setBlogType] = useState('tool-review');
@@ -208,6 +389,7 @@ export default function StudioPage() {
   const [brief, setBrief] = useState<Brief | null>(null);
   const [briefApproved, setBriefApproved] = useState(false);
   // editingBrief state reserved for future inline brief editing
+  const [reviewing, setReviewing] = useState(false);
 
   const [sections, setSections] = useState<SectionDraft[]>([]);
   const [writing, setWriting] = useState(false);
@@ -610,6 +792,21 @@ export default function StudioPage() {
     );
   }
 
+  if (reviewing && brief) {
+    return (
+      <ReviewScreen
+        sections={sections}
+        brief={brief}
+        onEdit={editSection}
+        onRegenerate={regenerateSection}
+        onBack={() => setReviewing(false)}
+        onPublish={pushToWebflow}
+        pushStatus={pushStatus}
+        pushResult={pushResult}
+      />
+    );
+  }
+
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       <div className="flex items-center gap-3 px-4 py-2.5 bg-white border-b border-gray-200 text-sm">
@@ -731,27 +928,15 @@ export default function StudioPage() {
               ))
             )}
 
-            {allDone && (
-              <div className="mt-4 border border-gray-200 rounded-lg p-4 bg-white">
-                {pushStatus === 'idle' && (
-                  <button
-                    onClick={pushToWebflow}
-                    className="w-full py-2.5 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800"
-                  >
-                    Push to Webflow as draft
-                  </button>
-                )}
-                {pushStatus === 'pushing' && (
-                  <div className="text-sm text-gray-500 text-center animate-pulse">Pushing to Webflow...</div>
-                )}
-                {pushStatus === 'done' && pushResult && (
-                  <div className="text-sm text-green-700">
-                    Pushed as draft. Slug: <code className="text-xs bg-gray-100 px-1 rounded">{pushResult.slug}</code>
-                  </div>
-                )}
-                {pushStatus === 'error' && (
-                  <div className="text-sm text-red-500">Push failed. Check Webflow tokens.</div>
-                )}
+            {allDone && !writing && (
+              <div className="mt-4 border border-green-200 rounded-lg p-4 bg-green-50">
+                <div className="text-xs text-green-700 mb-3 font-medium">All sections complete</div>
+                <button
+                  onClick={() => setReviewing(true)}
+                  className="w-full py-2.5 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800"
+                >
+                  Review & publish
+                </button>
               </div>
             )}
           </div>
