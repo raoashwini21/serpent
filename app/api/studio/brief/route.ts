@@ -87,20 +87,20 @@ TASK:
 CURRENT YEAR: 2026. Always use 2026 in titles and headings. Never use 2024 or 2025.
 
 H1 TITLE RULES — pick the right pattern for the blog type:
-- Review: "[Tool] Review 2025: Is It Worth It?" or "[Tool] Review 2025: Tested & Rated"
-- Comparison: "[Tool A] vs [Tool B] 2025: Which Is Better?"
-- Alternatives: "Best [Tool] Alternatives in 2025 (Tested)"
-- Listicle: "[N] Best [Category] Tools in 2025"
-- How-to: "How to [Goal] in 2025: Step-by-Step"
-- Rules: keyword first, year always 2025, under 70 chars
+- Review: "[Tool] Review 2026: Is It Worth It?" or "[Tool] Review 2026: Tested & Rated"
+- Comparison: "[Tool A] vs [Tool B] 2026: Which Is Better?"
+- Alternatives: "Best [Tool] Alternatives in 2026 (Tested)"
+- Listicle: "[N] Best [Category] Tools in 2026"
+- How-to: "How to [Goal] in 2026: Step-by-Step"
+- Rules: keyword first, year always 2026, under 70 chars
 - Never use: "Ultimate", "Complete", "Comprehensive", "Everything You Need"
 
-META TITLE: under 60 chars, must include keyword and 2025.
+META TITLE: under 60 chars, must include keyword and 2026.
 
 Return ONLY this JSON:
 {
-  "h1": "title following rules above — keyword first, 2025, under 70 chars",
-  "metaTitle": "meta title under 60 chars with 2025",
+  "h1": "title following rules above — keyword first, 2026, under 70 chars",
+  "metaTitle": "meta title under 60 chars with 2026",
   "metaDescription": "meta description 140-160 chars with primary keyword",
   "h2Changes": [
     {
@@ -114,8 +114,16 @@ Return ONLY this JSON:
   "salesRobotAngle": "one sentence — what gap in ${toolName} does SalesRobot fill based on the research",
   "confirmedPricing": "e.g. Starter $59/mo, Pro $99/mo — confirmed from research",
   "confirmedFeatures": ["feature 1", "feature 2", "feature 3"],
-  "topPainPoints": ["pain point 1", "pain point 2", "pain point 3"]
+  "topPainPoints": ["pain point 1", "pain point 2", "pain point 3"],
+  "faqQuestions": ["actual PAA or search question 1", "question 2", "question 3", "question 4", "question 5"]
 }
+
+faqQuestions rules:
+- Use REAL questions from PAA data and SERP signals provided above
+- Format as natural questions people actually search: "How much does X cost?", "Is X worth it?", "Does X have a free trial?"
+- Include comparison questions if found: "Is X better than Y?"
+- 4-6 questions maximum
+- If no PAA data available, derive from top pain points as genuine questions
 
 Return only valid JSON. No markdown.`;
 
