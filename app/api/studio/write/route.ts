@@ -45,14 +45,14 @@ Rules:
 
 SECTION: TL;DR — 100-120 words total.
 <h2>TL;DR</h2>
-<p><strong>${toolName}</strong> is [one honest sentence].</p>
-<p><strong>Pros:</strong> [3 comma-separated]<br><strong>Cons:</strong> [3 comma-separated]<br><strong>Pricing:</strong> ${brief.confirmedPricing}</p>
+<p><strong>${toolName}</strong> is [one honest sentence — what it is and who it's for].</p>
+<p><strong>Pros:</strong> [3 from confirmed features: ${brief.confirmedFeatures.slice(0,3).join(', ')}]<br><strong>Cons:</strong> [3 from pain points: ${brief.topPainPoints.slice(0,3).join(', ')}]<br><strong>Pricing:</strong> ${brief.confirmedPricing}</p>
 <p><strong>Better alternative:</strong></p>
-<ul><li><strong>SalesRobot</strong> ($59-$99/month) — [one sentence on the specific gap in ${toolName}]</li></ul>
+<ul><li><strong>SalesRobot</strong> ($59-$99/month) — ${brief.salesRobotAngle}</li></ul>
 <p>This article is for you if:</p>
-<p>👉 [specific pain point for ${keyword}]</p>
+<p>👉 [pain point 1 from: ${brief.topPainPoints[0] ?? keyword}]</p>
 <p>OR</p>
-<p>👉 [different use case]</p>`,
+<p>👉 [pain point 2 from: ${brief.topPainPoints[1] ?? 'different use case'}]</p>`,
 
     intro: `${base}
 
@@ -64,29 +64,58 @@ Do not list features or pros/cons here.`,
 
 SECTION: What is ${toolName}? — 150-200 words.
 H2: "${brief.h2Changes.find(h => h.next.toLowerCase().includes('what'))?.next ?? `What is ${toolName}?`}"
-Explain what the tool is and who it's for. One paragraph on the core use case. One on what it does NOT do.`,
+Paragraph 1: What the tool is, who it's for, its core promise. Reference these confirmed features naturally: ${brief.confirmedFeatures.slice(0,3).join(', ')}.
+Paragraph 2: What the tool does NOT do — reference these pain points: ${brief.topPainPoints.slice(0,2).join(', ')}.
+Do not list features with bullets here — that's the features section.`,
 
     features: `${base}
 
-SECTION: Features — 250-300 words.
-H2: "${brief.h2Changes.find(h => h.next.toLowerCase().includes('feature') || h.next.toLowerCase().includes('do'))?.next ?? `What Does ${toolName} Actually Do?`}"
-Cover: ${brief.confirmedFeatures.slice(0, 5).join(', ')}.
-Each as: <p><strong>[Name]:</strong> [2 sentences]</p>. No sub-headings per feature.`,
+SECTION: Features — 250-300 words. THIS SECTION MUST ALWAYS BE INCLUDED.
+H2: "${brief.h2Changes.find(h =>
+  h.next.toLowerCase().includes('feature') ||
+  h.next.toLowerCase().includes('capabilit') ||
+  h.next.toLowerCase().includes('what does') ||
+  h.next.toLowerCase().includes('what can') ||
+  h.next.toLowerCase().includes('key')
+)?.next ?? `${toolName} Features: What Does It Actually Do?`}"
+
+${(brief.confirmedFeatures?.length ?? 0) > 0
+  ? `Cover ONLY these confirmed features — do not invent others: ${brief.confirmedFeatures.slice(0, 5).join(', ')}.`
+  : `No feature list from research. Write about the tool's core functionality based on: ${keyword} and pain points: ${brief.topPainPoints.slice(0,2).join(', ')}.`}
+
+Format each feature as:
+<p><strong>[Feature Name]:</strong> [2 sentences: what it does and why it matters for ${keyword}]</p>
+
+Do not add H3 per feature. Do not include pricing here.`,
 
     pricing: `${base}
 
 SECTION: Pricing — 150-180 words.
-H2: "${brief.h2Changes.find(h => h.next.toLowerCase().includes('pric') || h.next.toLowerCase().includes('cost'))?.next ?? `How Much Does ${toolName} Cost?`}"
-Cover each plan, price, what's included. Note annual discount or free trial.
-End with one honest sentence on value. Do not mention SalesRobot here.`,
+H2: "${brief.h2Changes.find(h => h.next.toLowerCase().includes('pric') || h.next.toLowerCase().includes('cost'))?.next ?? `${toolName} Pricing 2025: How Much Does It Cost?`}"
+
+Use this confirmed pricing data: ${brief.confirmedPricing}
+
+Cover: each plan name, its monthly price, what's included (2-3 key things).
+Note any annual discount or free trial. End with one honest value sentence.
+Do not mention SalesRobot. Do not invent plan names or prices.`,
 
     'pros-cons': `${base}
 
 SECTION: Pros and cons — 200-250 words.
 H2: "Is ${toolName} Worth It?"
-<h3>What works well</h3> — list ALL pros here with ✅ per item as <p>
-<h3>Watch out for</h3> — list ALL cons here with ❌ per item as <p>
-No other headings. No intro paragraph. No conclusion paragraph.`,
+
+Base your pros and cons ONLY on:
+- Confirmed features: ${brief.confirmedFeatures.slice(0, 5).join(', ')}
+- Known pain points from research: ${brief.topPainPoints.join(', ')}
+- Do NOT invent pros or cons not supported by the research above
+
+<h3>What works well</h3>
+List 4-5 genuine pros with ✅ per item as <p>. Each pro must relate to a confirmed feature.
+
+<h3>Watch out for</h3>
+List 4-5 genuine cons with ❌ per item as <p>. Each con must relate to a known pain point.
+
+No intro paragraph. No conclusion. No other headings.`,
 
     overview: `${base}
 
