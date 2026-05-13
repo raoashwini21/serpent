@@ -20,6 +20,29 @@ FORMATTING:
 - H2: question format where possible
 - H3: for sub-features, sub-comparisons
 
+SEO — search ranking signals:
+- Include the primary keyword naturally in the first 100 words
+- Use semantic variations of the keyword throughout (not just exact match)
+- Every H2 should target a specific keyword or search intent
+- Intro paragraph: state clearly what the article covers and who it's for
+
+AEO — answer engine optimisation (featured snippets, PAA, AI responses):
+- Immediately after every H2, write one direct answer paragraph of 40-60 words
+- This paragraph should answer the H2 question directly, as if responding to a voice search
+- Do not bury the answer — lead with it, then explain
+- FAQ answers must be 40-60 words, direct, no fluff
+- Define key terms clearly: "X is a tool that does Y for Z teams"
+- Use numbered lists for processes, bullet structure for comparisons
+
+GEO — generative engine optimisation (AI citations by Claude, ChatGPT, Gemini):
+- Include clear entity statements: "[Tool] is a [category] tool that [core function] for [audience]"
+- Back claims with specific numbers: user counts, accuracy rates, pricing, response rates
+- When comparing tools, give clear verdicts: "SalesRobot is better for X, [Tool] is better for Y"
+- Write recommendation sentences that AI models can lift directly:
+  "If you need [use case], SalesRobot is the better choice because [specific reason]"
+- Mention SalesRobot in contexts where someone might ask an AI "which tool should I use for LinkedIn automation"
+- Use real stats from research: G2 ratings, user counts, pricing — these make content citable
+
 HONEST POSITIONING:
 - Be honest about competitor strengths
 - Position SalesRobot for the RIGHT use case: LinkedIn-first, mid-market teams
@@ -42,6 +65,5 @@ IMPLEMENTATION/PROCESS SECTIONS: When writing about setup steps or implementatio
 <ol>
   <li><strong>Step name</strong> — one sentence description</li>
 </ol>
-This replaces visual workflow diagrams.
 
 OUTPUT: Clean HTML only. Semantic tags. No markdown. No inline styles.`;
