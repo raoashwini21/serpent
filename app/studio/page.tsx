@@ -450,6 +450,121 @@ function ReviewSection({
   );
 }
 
+
+function FullBlogEditor({
+  section,
+  onEdit,
+  onRegenerate,
+}: {
+  section: SectionDraft;
+  onEdit: (id: string, html: string) => void;
+  onRegenerate: (id: string, note: string) => void;
+}) {
+  const editRef = useRef<HTMLDivElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [note, setNote] = useState('');
+
+  const startEdit = () => {
+    setIsEditing(true);
+    setTimeout(() => {
+      if (editRef.current) {
+        editRef.current.innerHTML = section.html;
+        editRef.current.focus();
+      }
+    }, 30);
+  };
+
+  const saveEdit = () => {
+    if (editRef.current) onEdit(section.id, editRef.current.innerHTML);
+    setIsEditing(false);
+  };
+
+  const addLink = () => {
+    let url = window.prompt('Enter URL:');
+    if (!url) return;
+    if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('/')) {
+      url = 'https://' + url;
+    }
+    document.execCommand('createLink', false, url);
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !editRef.current) return;
+    setUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/studio/upload-image', { method: 'POST', body: formData });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      document.execCommand('insertHTML', false, `<img src="${json.url}" alt="${file.name.replace(/\.[^.]+$/, '')}" style="max-width:100%;height:auto;border-radius:8px;margin:12px 0" />`);
+    } catch (err) {
+      alert('Image upload failed: ' + (err instanceof Error ? err.message : 'unknown'));
+    } finally {
+      setUploadingImage(false);
+      if (imageInputRef.current) imageInputRef.current.value = '';
+    }
+  };
+
+  return (
+    <div>
+      {isEditing && (
+        <div className="flex items-center gap-1 mb-3 p-2 bg-gray-50 border border-gray-200 rounded-lg sticky top-16 z-10">
+          <button onClick={() => document.execCommand('bold')} className="text-xs px-2 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50 font-bold">B</button>
+          <button onClick={() => document.execCommand('italic')} className="text-xs px-2 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50 italic">I</button>
+          <button onClick={addLink} className="text-xs px-2 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50">🔗 Link</button>
+          <button onClick={() => imageInputRef.current?.click()} disabled={uploadingImage} className="text-xs px-2 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40">
+            {uploadingImage ? '...' : '🖼 Image'}
+          </button>
+          <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+          <span className="flex-1" />
+          <button onClick={saveEdit} className="text-xs px-3 py-1.5 rounded bg-gray-900 text-white hover:bg-gray-800">Save</button>
+          <button onClick={() => setIsEditing(false)} className="text-xs px-2 py-1.5 rounded border border-gray-200 hover:bg-gray-50">Cancel</button>
+        </div>
+      )}
+
+      {isEditing ? (
+        <div
+          ref={editRef}
+          contentEditable
+          suppressContentEditableWarning
+          className="prose prose-gray max-w-none text-sm leading-relaxed outline-none border border-blue-200 rounded-lg p-4 bg-blue-50 min-h-96"
+        />
+      ) : (
+        <div
+          className="prose prose-gray max-w-none text-sm leading-relaxed"
+          dangerouslySetInnerHTML={{ __html: section.html }}
+        />
+      )}
+
+      <div className="flex gap-2 mt-6 pt-4 border-t border-gray-100">
+        {!isEditing && (
+          <button onClick={startEdit} className="text-xs px-3 py-1.5 rounded border border-gray-200 bg-white hover:bg-gray-50">
+            Edit inline
+          </button>
+        )}
+        <input
+          type="text"
+          placeholder="Regenerate specific part with note..."
+          value={note}
+          onChange={e => setNote(e.target.value)}
+          className="flex-1 text-xs px-3 py-1.5 rounded border border-gray-200 bg-white"
+          onKeyDown={e => { if (e.key === 'Enter' && note) { onRegenerate(section.id, note); setNote(''); } }}
+        />
+        <button
+          onClick={() => { onRegenerate(section.id, note); setNote(''); }}
+          className="text-xs px-3 py-1.5 rounded border border-gray-200 bg-white hover:bg-gray-50"
+        >
+          ↺ Re-patch
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ReviewScreen({ sections, brief, mode, blogType, onEdit, onRegenerate, onBack, onPublish, pushStatus, pushResult }: ReviewScreenProps) {
   const [copied, setCopied] = useState(false);
 
@@ -527,7 +642,15 @@ function ReviewScreen({ sections, brief, mode, blogType, onEdit, onRegenerate, o
           </p>
           {sections
             .filter(s => (s.status === 'done' || s.status === 'skipped') && s.html)
-            .map(s => (
+            .map(s => s.id === 'full-update' ? (
+              // Update mode — render full blog as one editable document
+              <FullBlogEditor
+                key={s.id}
+                section={s}
+                onEdit={onEdit}
+                onRegenerate={onRegenerate}
+              />
+            ) : (
               <ReviewSection
                 key={s.id}
                 section={s}
