@@ -56,15 +56,15 @@ function FindingItem({ f }: { f: Finding }) {
   );
 }
 
-function H2DiffRow({ change, index }: { change: Brief['h2Changes'][0]; index: number }) {
+function H2DiffRow({ change, index, isUpdate = false }: { change: Brief['h2Changes'][0]; index: number; isUpdate?: boolean }) {
   return (
     <div className="border border-gray-200 rounded-lg p-3 mb-2 text-xs">
       <div className="flex items-center gap-2 mb-1">
-        <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${change.isNew ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
-          {change.isNew ? 'New H2' : `H2 #${index + 1}`}
+        <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${change.isNew || !isUpdate ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
+          {!isUpdate ? `H2 ${index + 1}` : change.isNew ? 'New H2' : 'Updated H2'}
         </span>
       </div>
-      {change.old && (
+      {isUpdate && change.old && (
         <div className="line-through text-gray-400 mb-1">{change.old}</div>
       )}
       <div className="font-medium text-gray-800">{change.next}</div>
@@ -115,8 +115,8 @@ function SectionCard({
         </span>
       </div>
 
-      {section.flagReason && section.status === 'flagged' && (
-        <div className="px-3 py-1.5 bg-amber-50 text-xs text-amber-700 border-t border-amber-100">
+      {section.flagReason && (section.status === 'flagged' || section.status === 'pending') && (
+        <div className={`px-3 py-1.5 text-xs border-t ${section.status === 'flagged' ? 'bg-amber-50 text-amber-700 border-amber-100' : 'bg-gray-50 text-gray-500 border-gray-100'}`}>
           {section.flagReason}
         </div>
       )}
@@ -841,11 +841,36 @@ export default function StudioPage() {
           html: getFullBodyForUpdate(selectedPost.bodyHtml),
         }]);
       } else {
+        // Match each section to its brief H2 suggestion for the label
+        const h2Map: Record<string, string> = {};
+        const sectionToKeyword: Record<string, string[]> = {
+          'what-is':    ['what is', 'what'],
+          'features':   ['feature', 'capabilit', 'what does', 'key'],
+          'pricing':    ['pric', 'cost', 'plan'],
+          'pros-cons':  ['worth', 'pros', 'cons', 'honest'],
+          'overview':   ['overview'],
+          'comparison': ['vs', 'compar'],
+          'salesrobot': ['salesrobot', 'help'],
+          'faq':        ['faq', 'frequently', 'question'],
+          'conclusion': ['conclusion'],
+          'why-switch': ['switch', 'why', 'alternative'],
+          'alternatives-list': ['alternative', 'best'],
+          'tools-list': ['best', 'top', 'tool'],
+          'tips-list':  ['tip', 'strateg'],
+          'how-to-steps': ['how to', 'step', 'guide'],
+        };
+        for (const [sId, keywords] of Object.entries(sectionToKeyword)) {
+          const match = json.brief.h2Changes.find((h: {next: string}) =>
+            keywords.some(kw => h.next.toLowerCase().includes(kw))
+          );
+          if (match) h2Map[sId] = match.next;
+        }
         setSections(sectionIds.map(id => ({
           id,
           label: SECTION_LABELS[id] ?? id,
           status: 'pending',
           html: '',
+          flagReason: h2Map[id] ? `H2: "${h2Map[id]}"` : undefined,
         })));
       }
     } catch (e) {
@@ -1328,8 +1353,8 @@ export default function StudioPage() {
                             <div className="text-xs text-gray-700">{brief.salesRobotAngle}</div>
                           </div>
                           <div>
-                            <div className="text-xs text-gray-400 uppercase tracking-wide mb-2">Heading changes</div>
-                            {brief.h2Changes.map((c, i) => <H2DiffRow key={i} change={c} index={i} />)}
+                            <div className="text-xs text-gray-400 uppercase tracking-wide mb-2">{mode === 'update' ? 'Heading changes' : 'Suggested headings'}</div>
+                            {brief.h2Changes.map((c, i) => <H2DiffRow key={i} change={c} index={i} isUpdate={mode === 'update'} />)}
                           </div>
                         </div>
                       </>
