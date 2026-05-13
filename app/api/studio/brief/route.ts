@@ -84,7 +84,7 @@ TASK:
 3. Set target keywords from GSC or SERP signals.
 4. Write a SalesRobot positioning angle based on the gaps found.
 
-CURRENT YEAR: 2025. Always use 2025 in titles. Never use 2024 or any other year.
+CURRENT YEAR: 2026. Always use 2026 in titles and headings. Never use 2024 or 2025.
 
 H1 TITLE RULES — pick the right pattern for the blog type:
 - Review: "[Tool] Review 2025: Is It Worth It?" or "[Tool] Review 2025: Tested & Rated"
