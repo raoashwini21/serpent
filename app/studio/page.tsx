@@ -209,14 +209,22 @@ function getFlagReason(sectionId: string, research: ResearchData, brief: { h2Cha
 }
 
 function extractSectionHtml(bodyHtml: string, sectionId: string): string {
-  // Use[\s\S]*? with section tags — finds content including nested tags and images
+  if (!bodyHtml) return '';
+  // Try SERPent-style <section id="..."> wrapper first
   try {
     const escaped = sectionId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const byId = new RegExp(`<section[^>]*id=["']${escaped}["'][^>]*>([\s\S]*?)<\/section>`, 'i');
     const idMatch = bodyHtml.match(byId);
-    if (idMatch?.[1]) return idMatch[1].trim();
-  } catch { /* ignore regex errors */ }
-  return '';
+    if (idMatch?.[1]?.trim()) return idMatch[1].trim();
+  } catch { /* ignore */ }
+  // For legacy blogs without section wrappers, return full body for first section
+  // and empty for others — the full body is handled at the brief level
+  return sectionId === 'intro' || sectionId === 'tldr' ? '' : '';
+}
+
+// For update mode — returns the complete blog body as-is for surgical editing
+function getFullBodyForUpdate(bodyHtml: string): string {
+  return bodyHtml ?? '';
 }
 
 interface ReviewScreenProps {
@@ -671,29 +679,29 @@ export default function StudioPage() {
       if (mode === 'update' && selectedPost?.bodyHtml) {
         // Extract existing section HTML from the fetched post
         // Flag sections that research found changes for
-        const changedKeywords = [
-          ...(researchData.pricing ?? []).filter(f => f.type !== 'signal').map(() => 'pricing'),
-          ...(researchData.features ?? []).filter(f => f.type !== 'signal').map(() => 'features'),
-        ];
-        const hasH2Changes = json.brief.h2Changes.some((h: {isNew: boolean}) => h.isNew);
+        const pricingChanged = (researchData.pricing ?? []).some(f => f.type === 'changed' || f.type === 'removed' || f.type === 'added');
+        const featuresChanged = (researchData.features ?? []).some(f => f.type === 'added' || f.type === 'removed');
+        const hasNewH2s = json.brief.h2Changes.some((h: {isNew: boolean}) => h.isNew);
+        const hasRedditSignals = (researchData.redditSignals ?? []).length > 0;
 
-        setSections(sectionIds.map(id => {
-          const isFlagged =
-            (id === 'pricing' && changedKeywords.includes('pricing')) ||
-            (id === 'features' && changedKeywords.includes('features')) ||
-            (id === 'tldr') ||
-            (id === 'salesrobot') ||
-            (id === 'conclusion') ||
-            (id === 'faq' && hasH2Changes);
+        // For update mode: treat the whole blog as one unit
+        // Show full body with images intact, apply surgical fixes to the whole thing
+        const hasChanges = pricingChanged || featuresChanged || hasNewH2s || hasRedditSignals;
 
-          return {
-            id,
-            label: SECTION_LABELS[id] ?? id,
-            status: isFlagged ? 'flagged' : 'skipped',
-            flagReason: isFlagged ? getFlagReason(id, researchData, json.brief) : undefined,
-            html: extractSectionHtml(selectedPost.bodyHtml, id),
-          };
-        }));
+        setSections([{
+          id: 'full-update',
+          label: 'Full blog (surgical update)',
+          status: hasChanges ? 'flagged' : 'skipped',
+          flagReason: hasChanges
+            ? [
+                pricingChanged ? 'Pricing updated' : '',
+                featuresChanged ? 'Features changed' : '',
+                hasNewH2s ? 'New H2 opportunities' : '',
+                hasRedditSignals ? 'New user signals' : '',
+              ].filter(Boolean).join(', ')
+            : 'No changes detected — blog is up to date',
+          html: getFullBodyForUpdate(selectedPost.bodyHtml),
+        }]);
       } else {
         setSections(sectionIds.map(id => ({
           id,
@@ -724,10 +732,14 @@ export default function StudioPage() {
     setWriting(true);
     const sectionIds = BLOG_SECTIONS[blogType] ?? BLOG_SECTIONS['tool-review'];
 
-    for (const sectionId of sectionIds) {
-      // In update mode, skip sections that don't need changes
+    // In update mode, sections list is just [{id:'full-update', ...}]
+    const sectionsToWrite = mode === 'update'
+      ? sections.filter(s => s.status === 'flagged').map(s => s.id)
+      : sectionIds;
+
+    for (const sectionId of sectionsToWrite) {
       const currentSection = sections.find(s => s.id === sectionId);
-      if (mode === 'update' && currentSection?.status === 'skipped') continue;
+      if (!currentSection) continue;
 
       setSections(prev => prev.map(s => s.id === sectionId ? { ...s, status: 'writing' } : s));
 
@@ -865,7 +877,7 @@ export default function StudioPage() {
   }, [sections, brief, blogType]);
 
   const doneSections = sections.filter(s => s.status === 'done' || s.status === 'skipped').length;
-  const allDone = sections.length > 0 && doneSections === sections.length && !writing;
+  const allDone = sections.length > 0 && doneSections === sections.length && !writing && briefApproved;
 
   if (!started) {
     return (
