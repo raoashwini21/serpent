@@ -223,9 +223,9 @@ export async function POST(req: NextRequest) {
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 1200,
+      max_tokens: sectionId === 'full-update' ? 8000 : 1200,
       stream: true,
-      system: MASTER_SYSTEM_PROMPT,
+      system: sectionId === 'full-update' ? 'You are a surgical HTML editor. Return complete HTML only.' : MASTER_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: prompt }],
     }),
   });
