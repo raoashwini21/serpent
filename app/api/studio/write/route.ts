@@ -91,7 +91,7 @@ Do not add H3 per feature. Do not include pricing here.`,
     pricing: `${base}
 
 SECTION: Pricing — 150-180 words.
-H2: "${brief.h2Changes.find(h => h.next.toLowerCase().includes('pric') || h.next.toLowerCase().includes('cost'))?.next ?? `${toolName} Pricing 2025: How Much Does It Cost?`}"
+H2: "${brief.h2Changes.find(h => h.next.toLowerCase().includes('pric') || h.next.toLowerCase().includes('cost'))?.next ?? `${toolName} Pricing 2026: How Much Does It Cost?`}"
 
 Use this confirmed pricing data: ${brief.confirmedPricing}
 
