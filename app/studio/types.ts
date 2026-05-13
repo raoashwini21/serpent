@@ -42,6 +42,7 @@ export interface Brief {
   confirmedPricing: string;
   confirmedFeatures: string[];
   topPainPoints: string[];
+  faqQuestions?: string[];
 }
 
 export interface SectionDraft {
