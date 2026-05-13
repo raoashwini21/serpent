@@ -411,6 +411,8 @@ function FullBlogEditor({
   const [isEditing, setIsEditing] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [note, setNote] = useState('');
+  const [selectedImg, setSelectedImg] = useState<HTMLImageElement | null>(null);
+  const [altText, setAltText] = useState('');
 
   const startEdit = () => {
     setIsEditing(true);
@@ -418,6 +420,21 @@ function FullBlogEditor({
       if (editRef.current) {
         editRef.current.innerHTML = section.html;
         editRef.current.focus();
+        // Wire up image click handlers
+        editRef.current.querySelectorAll('img').forEach(img => {
+          img.style.cursor = 'pointer';
+          img.addEventListener('click', (e) => {
+            e.stopPropagation();
+            setSelectedImg(img);
+            setAltText(img.alt || '');
+          });
+        });
+        // Click outside image deselects
+        editRef.current.addEventListener('click', (e) => {
+          if ((e.target as HTMLElement).tagName !== 'IMG') {
+            setSelectedImg(null);
+          }
+        });
       }
     }, 30);
   };
@@ -425,6 +442,21 @@ function FullBlogEditor({
   const saveEdit = () => {
     if (editRef.current) onEdit(section.id, editRef.current.innerHTML);
     setIsEditing(false);
+    setSelectedImg(null);
+  };
+
+  const deleteSelectedImg = () => {
+    if (selectedImg) {
+      selectedImg.remove();
+      setSelectedImg(null);
+    }
+  };
+
+  const applyAltText = () => {
+    if (selectedImg) {
+      selectedImg.alt = altText;
+      selectedImg.title = altText;
+    }
   };
 
   const addLink = () => {
@@ -446,7 +478,15 @@ function FullBlogEditor({
       const res = await fetch('/api/studio/upload-image', { method: 'POST', body: formData });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error);
-      document.execCommand('insertHTML', false, `<img src="${json.url}" alt="${file.name.replace(/\.[^.]+$/, '')}" style="max-width:100%;height:auto;border-radius:8px;margin:12px 0" />`);
+      const altName = file.name.replace(/\.[^.]+$/, '').replace(/-|_/g, ' ');
+      document.execCommand('insertHTML', false, `<img src="${json.url}" alt="${altName}" title="${altName}" style="max-width:100%;height:auto;border-radius:8px;margin:12px 0;cursor:pointer" />`);
+      // Wire click on newly inserted image
+      setTimeout(() => {
+        editRef.current?.querySelectorAll('img').forEach(img => {
+          img.style.cursor = 'pointer';
+          img.onclick = (e) => { e.stopPropagation(); setSelectedImg(img); setAltText(img.alt || ''); };
+        });
+      }, 100);
     } catch (err) {
       alert('Image upload failed: ' + (err instanceof Error ? err.message : 'unknown'));
     } finally {
@@ -458,17 +498,43 @@ function FullBlogEditor({
   return (
     <div>
       {isEditing && (
-        <div className="flex items-center gap-1 mb-3 p-2 bg-gray-50 border border-gray-200 rounded-lg sticky top-16 z-10">
-          <button onClick={() => document.execCommand('bold')} className="text-xs px-2 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50 font-bold">B</button>
-          <button onClick={() => document.execCommand('italic')} className="text-xs px-2 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50 italic">I</button>
-          <button onClick={addLink} className="text-xs px-2 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50">🔗 Link</button>
-          <button onClick={() => imageInputRef.current?.click()} disabled={uploadingImage} className="text-xs px-2 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40">
-            {uploadingImage ? '...' : '🖼 Image'}
-          </button>
-          <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-          <span className="flex-1" />
-          <button onClick={saveEdit} className="text-xs px-3 py-1.5 rounded bg-gray-900 text-white hover:bg-gray-800">Save</button>
-          <button onClick={() => setIsEditing(false)} className="text-xs px-2 py-1.5 rounded border border-gray-200 hover:bg-gray-50">Cancel</button>
+        <div className="mb-3 sticky top-16 z-10 space-y-1">
+          <div className="flex items-center gap-1 p-2 bg-gray-50 border border-gray-200 rounded-lg">
+            <button onClick={() => document.execCommand('bold')} className="text-xs px-2 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50 font-bold">B</button>
+            <button onClick={() => document.execCommand('italic')} className="text-xs px-2 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50 italic">I</button>
+            <button onClick={addLink} className="text-xs px-2 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50">🔗 Link</button>
+            <button onClick={() => imageInputRef.current?.click()} disabled={uploadingImage} className="text-xs px-2 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40">
+              {uploadingImage ? '...' : '🖼 Add image'}
+            </button>
+            <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+            <span className="flex-1" />
+            <button onClick={saveEdit} className="text-xs px-3 py-1.5 rounded bg-gray-900 text-white hover:bg-gray-800">Save</button>
+            <button onClick={() => { setIsEditing(false); setSelectedImg(null); }} className="text-xs px-2 py-1.5 rounded border border-gray-200 hover:bg-gray-50">Cancel</button>
+          </div>
+          {selectedImg && (
+            <div className="flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded-lg">
+              <span className="text-xs text-amber-700 font-medium flex-shrink-0">Selected image:</span>
+              <input
+                type="text"
+                value={altText}
+                onChange={e => setAltText(e.target.value)}
+                placeholder="Alt text..."
+                className="flex-1 text-xs px-2 py-1 rounded border border-amber-200 bg-white"
+              />
+              <button
+                onClick={applyAltText}
+                className="text-xs px-2 py-1 rounded border border-amber-200 bg-white hover:bg-amber-50 text-amber-700"
+              >
+                Apply alt
+              </button>
+              <button
+                onClick={deleteSelectedImg}
+                className="text-xs px-2 py-1 rounded bg-red-500 text-white hover:bg-red-600"
+              >
+                Delete image
+              </button>
+            </div>
+          )}
         </div>
       )}
 
