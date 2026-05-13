@@ -4,255 +4,295 @@ import type { Brief } from '@/app/studio/types';
 
 export const maxDuration = 60;
 
-function buildSectionPrompt(
-  sectionId: string,
-  brief: Brief,
-  toolName: string,
-  blogType: string,
-  existingSectionHtml: string,
-  note?: string,
-): string {
+// ── Shared context builder ─────────────────────────────────────────────────
+function ctx(brief: Brief, toolName: string, note?: string): string {
   const keyword = brief.targetKeywords[0] ?? toolName;
-  const isUpdate = existingSectionHtml.length > 100;
+  const features = brief.confirmedFeatures?.slice(0, 5).join(', ') || 'not available';
+  const painPoints = brief.topPainPoints?.slice(0, 3).join(' | ') || 'not available';
+  return `Tool: ${toolName} | Keyword: ${keyword}
+Pricing: ${brief.confirmedPricing || 'check their site'}
+Features: ${features}
+Pain points: ${painPoints}
+SalesRobot angle: ${brief.salesRobotAngle}
+${note ? `Writer note: ${note}` : ''}
+Output: clean HTML only. No markdown. No wrappers. Max 30 words per <p>. No em dashes.`;
+}
 
-  const base = `You are writing ONE specific section of a blog about ${toolName}.
-DO NOT write an intro. DO NOT summarise the whole blog. DO NOT repeat content from other sections.
-Write ONLY the section described below. Nothing before it, nothing after it.
-${note ? `Writer note for this regeneration: ${note}` : ''}
-${isUpdate ? `EXISTING HTML TO UPDATE (keep structure, apply fixes only):\n${existingSectionHtml}\n` : ''}
-Context:
-- Primary keyword: ${keyword}
-- Confirmed pricing: ${brief.confirmedPricing}
-- Confirmed features: ${brief.confirmedFeatures.slice(0, 6).join(', ')}
-- Top pain points: ${brief.topPainPoints.slice(0, 3).join(', ')}
-- SalesRobot angle: ${brief.salesRobotAngle}
+function h2For(brief: Brief, keywords: string[], fallback: string): string {
+  return brief.h2Changes?.find(h =>
+    keywords.some(k => h.next.toLowerCase().includes(k))
+  )?.next ?? fallback;
+}
 
-Rules:
-- Clean HTML only. No markdown. No html/head/body/style wrappers.
-- Max 30 words per <p> tag.
-- Never use em dashes.
-- Never open with the blog title or a summary of what the blog covers.`;
+// ── Section prompt builders — one function each ───────────────────────────
 
-  // Use real PAA questions from brief, fall back to pain-point questions only if none
-  const faqQuestions = (brief.faqQuestions?.length ?? 0) > 0
-    ? brief.faqQuestions!.join('\n')
-    : brief.topPainPoints.slice(0, 5).map(p => {
-        const q = p.toLowerCase();
-        if (q.includes('pric') || q.includes('cost')) return `How much does ${toolName} cost?`;
-        if (q.includes('free')) return `Does ${toolName} have a free trial?`;
-        if (q.includes('accur')) return `How accurate is ${toolName}?`;
-        if (q.includes('integrat')) return `What does ${toolName} integrate with?`;
-        return `Is ${toolName} worth it for ${p.toLowerCase().replace(/^(no |limited |lack of )/i, '')}?`;
-      }).join('\n');
+function promptTldr(brief: Brief, toolName: string, note?: string): string {
+  return `${ctx(brief, toolName, note)}
 
-  const prompts: Record<string, string> = {
-
-    tldr: `${base}
-
-SECTION: TL;DR — 100-120 words total.
+Write the TL;DR section. 100-120 words. Exact format:
 <h2>TL;DR</h2>
-<p><strong>${toolName}</strong> is [one honest sentence — what it is and who it's for].</p>
-<p><strong>Pros:</strong> [3 from confirmed features: ${brief.confirmedFeatures.slice(0,3).join(', ')}]<br><strong>Cons:</strong> [3 from pain points: ${brief.topPainPoints.slice(0,3).join(', ')}]<br><strong>Pricing:</strong> ${brief.confirmedPricing}</p>
+<p><strong>${toolName}</strong> is [one honest sentence].</p>
+<p><strong>Pros:</strong> ${brief.confirmedFeatures?.slice(0,3).join(', ') || '[3 pros]'}<br><strong>Cons:</strong> ${brief.topPainPoints?.slice(0,3).join(', ') || '[3 cons]'}<br><strong>Pricing:</strong> ${brief.confirmedPricing}</p>
 <p><strong>Better alternative:</strong></p>
 <ul><li><strong>SalesRobot</strong> ($59-$99/month) — ${brief.salesRobotAngle}</li></ul>
 <p>This article is for you if:</p>
-<p>👉 [pain point 1 from: ${brief.topPainPoints[0] ?? keyword}]</p>
+<p>👉 ${brief.topPainPoints?.[0] ?? '[specific pain point]'}</p>
 <p>OR</p>
-<p>👉 [pain point 2 from: ${brief.topPainPoints[1] ?? 'different use case'}]</p>`,
+<p>👉 ${brief.topPainPoints?.[1] ?? '[different use case]'}</p>`;
+}
 
-    intro: `${base}
+function promptIntro(brief: Brief, toolName: string, note?: string): string {
+  return `${ctx(brief, toolName, note)}
 
-SECTION: Intro — 150-180 words. NO H2 heading. Start directly with <p>.
-Open with the problem. Mention ${toolName} in the first paragraph. Say what this review covers.
-Do not list features or pros/cons here.`,
+Write the intro. 150-180 words. No H2. Start with <p>.
+Open with the problem. Mention ${toolName} in paragraph 1.
+Say what this review covers. Do not list features or pros/cons.`;
+}
 
-    'what-is': `${base}
+function promptWhatIs(brief: Brief, toolName: string, note?: string): string {
+  const h2 = h2For(brief, ['what is', 'what'], `What Is ${toolName} and Who Is It For?`);
+  return `${ctx(brief, toolName, note)}
 
-SECTION: What is ${toolName}? — 150-200 words.
-H2: "${brief.h2Changes.find(h => h.next.toLowerCase().includes('what'))?.next ?? `What is ${toolName}?`}"
-Paragraph 1: What the tool is, who it's for, its core promise. Reference these confirmed features naturally: ${brief.confirmedFeatures.slice(0,3).join(', ')}.
-Paragraph 2: What the tool does NOT do — reference these pain points: ${brief.topPainPoints.slice(0,2).join(', ')}.
-Do not list features with bullets here — that's the features section.`,
+Write the "What is it?" section. 150-200 words.
+H2: "${h2}"
+Paragraph 1: What ${toolName} is, who it's for, its core promise. Reference: ${brief.confirmedFeatures?.slice(0,2).join(', ')}.
+Paragraph 2: What ${toolName} does NOT do. Reference: ${brief.topPainPoints?.slice(0,1).join(', ')}.
+Do not list all features — that's the next section.`;
+}
 
-    features: `${base}
+function promptFeatures(brief: Brief, toolName: string, note?: string): string {
+  const h2 = h2For(brief, ['feature', 'capabilit', 'what does', 'how does', 'work'], `What Does ${toolName} Actually Do?`);
+  const featureList = brief.confirmedFeatures?.length
+    ? `Cover ONLY these confirmed features: ${brief.confirmedFeatures.slice(0, 5).join(', ')}.`
+    : `No feature list from research. Write about core functionality based on keyword: ${brief.targetKeywords?.[0] ?? toolName}.`;
+  return `${ctx(brief, toolName, note)}
 
-SECTION: Features — 250-300 words. THIS SECTION MUST ALWAYS BE INCLUDED.
-H2: "${brief.h2Changes.find(h =>
-  h.next.toLowerCase().includes('feature') ||
-  h.next.toLowerCase().includes('capabilit') ||
-  h.next.toLowerCase().includes('what does') ||
-  h.next.toLowerCase().includes('what can') ||
-  h.next.toLowerCase().includes('key')
-)?.next ?? `${toolName} Features: What Does It Actually Do?`}"
-
-${(brief.confirmedFeatures?.length ?? 0) > 0
-  ? `Cover ONLY these confirmed features — do not invent others: ${brief.confirmedFeatures.slice(0, 5).join(', ')}.`
-  : `No feature list from research. Write about the tool's core functionality based on: ${keyword} and pain points: ${brief.topPainPoints.slice(0,2).join(', ')}.`}
-
+Write the features section. 250-300 words. THIS SECTION IS REQUIRED.
+H2: "${h2}"
+${featureList}
 Format each feature as:
-<p><strong>[Feature Name]:</strong> [2 sentences: what it does and why it matters for ${keyword}]</p>
+<p><strong>[Feature Name]:</strong> [2 sentences — what it does and why it matters]</p>
+No sub-headings per feature. No pricing in this section.`;
+}
 
-Do not add H3 per feature. Do not include pricing here.`,
+function promptPricing(brief: Brief, toolName: string, note?: string): string {
+  const h2 = h2For(brief, ['pric', 'cost', 'much'], `How Much Does ${toolName} Cost?`);
+  return `${ctx(brief, toolName, note)}
 
-    pricing: `${base}
+Write the pricing section. 150-180 words.
+H2: "${h2}"
+Use this confirmed pricing: ${brief.confirmedPricing}
+Cover each plan: name, price, what's included (2-3 things).
+Note annual discount and free trial if available.
+End with one honest sentence on value. No SalesRobot mention here.`;
+}
 
-SECTION: Pricing — 150-180 words.
-H2: "${brief.h2Changes.find(h => h.next.toLowerCase().includes('pric') || h.next.toLowerCase().includes('cost'))?.next ?? `${toolName} Pricing 2026: How Much Does It Cost?`}"
+function promptProsCons(brief: Brief, toolName: string, note?: string): string {
+  const h2 = h2For(brief, ['worth', 'pros', 'cons', 'honest', 'accurate', 'good'], `Is ${toolName} Worth It?`);
+  return `${ctx(brief, toolName, note)}
 
-Use this confirmed pricing data: ${brief.confirmedPricing}
-
-Cover: each plan name, its monthly price, what's included (2-3 key things).
-Note any annual discount or free trial. End with one honest value sentence.
-Do not mention SalesRobot. Do not invent plan names or prices.`,
-
-    'pros-cons': `${base}
-
-SECTION: Pros and cons — 200-250 words.
-H2: "Is ${toolName} Worth It?"
-
-Base your pros and cons ONLY on:
-- Confirmed features: ${brief.confirmedFeatures.slice(0, 5).join(', ')}
-- Known pain points from research: ${brief.topPainPoints.join(', ')}
-- Do NOT invent pros or cons not supported by the research above
+Write the pros and cons section. 200-250 words.
+H2: "${h2}"
 
 <h3>What works well</h3>
-List 4-5 genuine pros with ✅ per item as <p>. Each pro must relate to a confirmed feature.
+List 4-5 pros with ✅ per item as <p>. Each must relate to a confirmed feature: ${brief.confirmedFeatures?.slice(0,5).join(', ')}.
 
 <h3>Watch out for</h3>
-List 4-5 genuine cons with ❌ per item as <p>. Each con must relate to a known pain point.
+List 4-5 cons with ❌ per item as <p>. Each must relate to a known pain point: ${brief.topPainPoints?.join(', ')}.
 
-No intro paragraph. No conclusion. No other headings.`,
+No intro paragraph. No conclusion. Only the two H3 groups.`;
+}
 
-    overview: `${base}
+function promptOverview(brief: Brief, toolName: string, note?: string): string {
+  return `${ctx(brief, toolName, note)}
 
-SECTION: Overview — 150-200 words.
+Write the overview section. 150-200 words.
 H2: "Overview"
-Neutral overview of both tools. What each is, who it's for, one key strength each. Do not pick a winner.`,
+Neutral overview of both tools. What each is, who it's for, one key strength. Do not pick a winner yet.`;
+}
 
-    comparison: `${base}
+function promptComparison(brief: Brief, toolName: string, note?: string): string {
+  const h2 = h2For(brief, ['vs', 'compar', 'better'], `${toolName} vs SalesRobot: Which Is Better?`);
+  return `${ctx(brief, toolName, note)}
 
-SECTION: Feature comparison — 250-300 words.
-H2: "${brief.h2Changes.find(h => h.next.toLowerCase().includes('vs') || h.next.toLowerCase().includes('compar'))?.next ?? `${toolName} vs SalesRobot`}"
-Compare 4-5 feature categories. For each:
+Write the comparison section. 250-300 words.
+H2: "${h2}"
+Compare 4-5 categories. For each:
 <h3>[Category]</h3>
 <p><strong>${toolName}:</strong> [one sentence]</p>
 <p><strong>SalesRobot:</strong> [one sentence]</p>
-Name the winner per category honestly.`,
+Name the winner per category honestly.`;
+}
 
-    'why-switch': `${base}
+function promptWhySwitch(brief: Brief, toolName: string, note?: string): string {
+  const h2 = h2For(brief, ['switch', 'alternative', 'why'], `Why Look for a ${toolName} Alternative?`);
+  return `${ctx(brief, toolName, note)}
 
-SECTION: Why switch — 150-200 words.
-H2: "${brief.h2Changes.find(h => h.next.toLowerCase().includes('switch') || h.next.toLowerCase().includes('why'))?.next ?? `Why Look for a ${toolName} Alternative?`}"
-3-4 specific, honest reasons. Based on: ${brief.topPainPoints.join(', ')}.`,
+Write the "why switch" section. 150-200 words.
+H2: "${h2}"
+3-4 specific honest reasons based on: ${brief.topPainPoints?.join(', ')}.`;
+}
 
-    'alternatives-list': `${base}
+function promptAlternativesList(brief: Brief, toolName: string, note?: string): string {
+  return `${ctx(brief, toolName, note)}
 
-SECTION: Alternatives list — 300-350 words.
+Write the alternatives list. 300-350 words.
 H2: "Best ${toolName} Alternatives"
 List 4-5 tools. SalesRobot is #1. For each:
 <h3>[N]. [Tool Name]</h3>
 <p>[What it is — one sentence]</p>
-<p><strong>Best for:</strong> [use case] | <strong>Pricing:</strong> [price]</p>`,
+<p><strong>Best for:</strong> [use case] | <strong>Pricing:</strong> [price]</p>`;
+}
 
-    'why-it-matters': `${base}
+function promptWhyItMatters(brief: Brief, toolName: string, note?: string): string {
+  const h2 = h2For(brief, ['matter', 'important', 'why'], `Why This Matters for Your Sales Team`);
+  const keyword = brief.targetKeywords?.[0] ?? toolName;
+  return `${ctx(brief, toolName, note)}
 
-SECTION: Why it matters — 150-200 words.
-H2: "${brief.h2Changes.find(h => h.next.toLowerCase().includes('matter'))?.next ?? `Why This Matters for Your Sales Team`}"
-Business impact of ${keyword}. Use specific outcomes. Connect to pain points.`,
+Write the "why it matters" section. 150-200 words.
+H2: "${h2}"
+Business impact of ${keyword}. Use specific outcomes. Connect to: ${brief.topPainPoints?.slice(0,2).join(', ')}.`;
+}
 
-    'how-to-steps': `${base}
+function promptHowToSteps(brief: Brief, toolName: string, note?: string): string {
+  const h2 = h2For(brief, ['how to', 'step', 'guide', 'start'], `How to Get Started with ${toolName}`);
+  return `${ctx(brief, toolName, note)}
 
-SECTION: How-to steps — 250-300 words.
-H2: "${brief.h2Changes.find(h => h.next.toLowerCase().includes('how'))?.next ?? `How to Get Started`}"
+Write the how-to steps section. 250-300 words.
+H2: "${h2}"
 4-6 steps as:
 <ol><li><strong>[Step name]</strong> — [one sentence]</li></ol>
-Reference SalesRobot naturally for at least 2 steps.`,
+Reference SalesRobot naturally for at least 2 steps.`;
+}
 
-    'what-to-look-for': `${base}
+function promptWhatToLookFor(brief: Brief, toolName: string, note?: string): string {
+  return `${ctx(brief, toolName, note)}
 
-SECTION: What to look for — 150-200 words.
-H2: "What to Look for"
-4-5 criteria. Each as: <p><strong>[Criterion]:</strong> [why it matters, one sentence]</p>`,
+Write the "what to look for" section. 150-200 words.
+H2: "What to Look for in a Tool Like ${toolName}"
+4-5 evaluation criteria. Each as:
+<p><strong>[Criterion]:</strong> [why it matters, one sentence]</p>`;
+}
 
-    'tools-list': `${base}
+function promptToolsList(brief: Brief, toolName: string, note?: string): string {
+  return `${ctx(brief, toolName, note)}
 
-SECTION: Tools list — 350-400 words.
+Write the tools list section. 350-400 words.
 H2: "Best Tools"
 5-7 tools. SalesRobot is #1. Each:
 <h3>[N]. [Name]</h3>
 <p>[What it does — one sentence]</p>
-<p><strong>Best for:</strong> [use case] | <strong>Pricing:</strong> [price]</p>`,
+<p><strong>Best for:</strong> [use case] | <strong>Pricing:</strong> [price]</p>`;
+}
 
-    'tips-list': `${base}
+function promptTipsList(brief: Brief, toolName: string, note?: string): string {
+  const h2 = h2For(brief, ['tip', 'strateg', 'tactic'], `Tips That Actually Work`);
+  return `${ctx(brief, toolName, note)}
 
-SECTION: Tips — 250-300 words.
-H2: "${brief.h2Changes.find(h => h.next.toLowerCase().includes('tip'))?.next ?? `Tips That Actually Work`}"
+Write the tips section. 250-300 words.
+H2: "${h2}"
 5-7 tips. Each:
 <h3>[N]. [Tip headline]</h3>
-<p>[2-3 sentences of practical advice]</p>`,
+<p>[2-3 sentences of practical advice]</p>`;
+}
 
-    salesrobot: `${base}
+function promptSalesRobot(brief: Brief, toolName: string, note?: string): string {
+  return `${ctx(brief, toolName, note)}
 
-SECTION: SalesRobot — 250-300 words.
+Write the SalesRobot section. 250-300 words.
 H2: "How Can SalesRobot Help?"
-2 opening sentences on the specific gap: ${brief.salesRobotAngle}
+Opening: 2 sentences on this specific gap: ${brief.salesRobotAngle}
 
-Pick 4 relevant features from: AI Appointment Setter, Video/Voice messages, AI Variables, Safe Mode, Drip campaigns, Multi-account management, Whitelabel, A/B testing.
+Pick 4 from this list most relevant to the gap:
+AI Appointment Setter, Video/Voice messages, AI Variables, Safe Mode, Drip campaigns, Multi-account management, Whitelabel, A/B testing.
 Each as: <p><strong>[Feature]:</strong> [2 sentences — what it does, why it matters here]</p>
 
-Then:
+Then add exactly:
 <h3>How Much Does SalesRobot Cost?</h3>
 <p>SalesRobot has three plans: <strong>Starter</strong> at <strong>$59/month</strong>, <strong>Advanced</strong> at <strong>$79/month</strong>, and <strong>Professional</strong> at <strong>$99/month</strong>. Annual billing saves 35%.</p>
 <p>Try our <a href="https://app.salesrobot.co/register">14-day free trial</a>. No credit card required.</p>
-
 <h3>SalesRobot vs ${toolName}: Which is Better?</h3>
-3 short paragraphs: what ${toolName} does well, what SalesRobot does better, clear recommendation per audience.`,
+3 short paragraphs: what ${toolName} does well, what SalesRobot does better, clear recommendation per audience.`;
+}
 
-    faq: `${base}
+function promptFaq(brief: Brief, toolName: string, note?: string): string {
+  const questions = (brief.faqQuestions?.length ?? 0) > 0
+    ? brief.faqQuestions!.slice(0, 5).join('\n')
+    : [
+        `What is ${toolName}?`,
+        `How does ${toolName} work?`,
+        `How much does ${toolName} cost?`,
+        `Does ${toolName} have a free trial?`,
+        `Is ${toolName} worth it?`,
+      ].join('\n');
 
-SECTION: FAQ — 200-250 words.
+  return `${ctx(brief, toolName, note)}
+
+Write the FAQ section. 200-250 words.
 H2: "Frequently Asked Questions"
-Write exactly 4-5 Q&As using ONLY these questions:
-${faqQuestions}
+Write exactly 4-5 Q&As using ONLY these questions (copy them exactly):
+${questions}
 
-Format:
-<h3>[Question]</h3>
+Format each as:
+<h3>[Question exactly as written above]</h3>
 <p>[Direct answer, 40-60 words]</p>
 
-No intro text. No conclusion after the last answer.`,
+No intro text before first H3. No text after last answer.`;
+}
 
-    conclusion: `${base}
+function promptConclusion(brief: Brief, toolName: string, note?: string): string {
+  return `${ctx(brief, toolName, note)}
 
-SECTION: Conclusion — 150-180 words.
+Write the conclusion. 150-180 words.
 H2: "Conclusion"
 4 paragraphs only:
-1. What ${toolName} is genuinely good at — honest, specific.
-2. Who should use ${toolName} — exact team type.
+1. What ${toolName} genuinely does well — honest and specific.
+2. Who should use ${toolName} — exact team type and use case.
 3. Who should use SalesRobot — reference: ${brief.salesRobotAngle}.
 4. Fixed closing (copy exactly):
 <p>SalesRobot is cloud-based, keeps your LinkedIn account safe with mobile API emulation, and gets you running in minutes.</p>
 <p>You can try our <a href="https://app.salesrobot.co/register">14-day free trial</a>. No credit card required.</p>
-
-Do not summarise the whole blog. Just the verdict.`,
-  };
-
-  // full-update is handled entirely by the isUpdate branch above
-  // this fallback only runs for new blog sections
-  return prompts[sectionId] ?? `${base}
-
-SECTION: ${sectionId} — 150-200 words.
-Use an appropriate H2. Write only this section. Do not introduce the blog.`;
+Do not summarise the whole blog. Just the verdict.`;
 }
 
-function applyFindReplace(
-  html: string,
-  pairs: { find: string; replace: string }[]
+// ── Prompt router ─────────────────────────────────────────────────────────
+function getPrompt(
+  sectionId: string,
+  brief: Brief,
+  toolName: string,
+  blogType: string,
+  note?: string,
 ): string {
+  const map: Record<string, (b: Brief, t: string, n?: string) => string> = {
+    tldr:               promptTldr,
+    intro:              promptIntro,
+    'what-is':          promptWhatIs,
+    features:           promptFeatures,
+    pricing:            promptPricing,
+    'pros-cons':        promptProsCons,
+    overview:           promptOverview,
+    comparison:         promptComparison,
+    'why-switch':       promptWhySwitch,
+    'alternatives-list': promptAlternativesList,
+    'why-it-matters':   promptWhyItMatters,
+    'how-to-steps':     promptHowToSteps,
+    'what-to-look-for': promptWhatToLookFor,
+    'tools-list':       promptToolsList,
+    'tips-list':        promptTipsList,
+    salesrobot:         promptSalesRobot,
+    faq:                promptFaq,
+    conclusion:         promptConclusion,
+  };
+  const fn = map[sectionId];
+  if (fn) return fn(brief, toolName, note);
+  return `${ctx(brief, toolName, note)}\nWrite the "${sectionId}" section. 150-200 words. Use an appropriate H2. Write only this section.`;
+}
+
+// ── Update mode helpers ───────────────────────────────────────────────────
+function applyFindReplace(html: string, pairs: { find: string; replace: string }[]): string {
   let result = html;
   for (const { find, replace } of pairs) {
-    if (find && result.includes(find)) {
-      result = result.split(find).join(replace);
-    }
+    if (find && result.includes(find)) result = result.split(find).join(replace);
   }
   return result;
 }
@@ -268,75 +308,74 @@ function extractJSONArray(raw: string): { find: string; replace: string }[] {
   return [];
 }
 
+// ── POST handler ──────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   const { sectionId, brief, toolName, blogType, existingSectionHtml = '', _note } = await req.json();
 
-  // UPDATE MODE — non-streaming: get find/replace pairs, apply to existing HTML
+  // UPDATE MODE — find/replace, non-streaming
   if (sectionId === 'full-update' && existingSectionHtml) {
-    const prompt = buildSectionPrompt(sectionId, brief, toolName, blogType, existingSectionHtml, _note);
+    const updatePrompt = `You are a fact-checker reviewing a blog post for outdated information.
+
+CONFIRMED CURRENT FACTS:
+- Pricing: ${brief.confirmedPricing}
+- Features: ${(brief.confirmedFeatures ?? []).slice(0, 6).join(', ')}
+- Pain points: ${(brief.topPainPoints ?? []).slice(0, 3).join(', ')}
+${_note ? `Editor note: ${_note}` : ''}
+
+Find outdated text and return ONLY a JSON array of find/replace pairs.
+Focus on: wrong pricing numbers, wrong year (2024/2025 → 2026), removed features.
+
+Return ONLY:
+[{ "find": "exact text from blog", "replace": "corrected text" }]
+
+Rules:
+- "find" must be exact substring from the blog
+- Maximum 8 pairs
+- Only change facts that are clearly wrong
+- If nothing needs changing return []
+- Valid JSON only, no explanation`;
 
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY!,
-        'anthropic-version': '2023-06-01',
-      },
+      headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY!, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 800,
         stream: false,
         system: 'You are a fact-checker. Return only valid JSON arrays. No prose.',
-        messages: [{ role: 'user', content: prompt }],
+        messages: [{ role: 'user', content: updatePrompt }],
       }),
     });
 
-    if (!res.ok) {
-      const err = await res.text();
-      return NextResponse.json({ error: err }, { status: 500 });
-    }
+    if (!res.ok) return NextResponse.json({ error: await res.text() }, { status: 500 });
 
     const data = await res.json();
-    const raw = data.content
-      .filter((b: { type: string }) => b.type === 'text')
-      .map((b: { text: string }) => b.text)
-      .join('');
-
+    const raw = data.content.filter((b: { type: string }) => b.type === 'text').map((b: { text: string }) => b.text).join('');
     const pairs = extractJSONArray(raw);
-    const updatedHtml = pairs.length > 0
-      ? applyFindReplace(existingSectionHtml, pairs)
-      : existingSectionHtml;
+    const updatedHtml = pairs.length > 0 ? applyFindReplace(existingSectionHtml, pairs) : existingSectionHtml;
 
-    // Stream the result back as SSE so client handles it the same way
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       start(controller) {
         const chunks: string[] = [];
-for (let i = 0; i < updatedHtml.length; i += 200) chunks.push(updatedHtml.slice(i, i + 200));
+        for (let i = 0; i < updatedHtml.length; i += 200) chunks.push(updatedHtml.slice(i, i + 200));
         for (const chunk of chunks) {
-          const event = JSON.stringify({ type: 'content_block_delta', delta: { type: 'text_delta', text: chunk } });
-          controller.enqueue(encoder.encode('data: ' + event + '\n\n'));
+          controller.enqueue(encoder.encode('data: ' + JSON.stringify({ type: 'content_block_delta', delta: { type: 'text_delta', text: chunk } }) + '\n\n'));
         }
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));
         controller.close();
       }
     });
 
-    return new Response(stream, {
-      headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' },
-    });
+    return new Response(stream, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' } });
   }
 
-  // NEW BLOG MODE — streaming section by section
-  const prompt = buildSectionPrompt(sectionId, brief, toolName, blogType, existingSectionHtml, _note);
+  // NEW BLOG MODE — focused single-section prompt, streaming
+  const prompt = getPrompt(sectionId, brief, toolName, blogType, _note);
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY!,
-      'anthropic-version': '2023-06-01',
-    },
+    headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY!, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1200,
@@ -346,12 +385,7 @@ for (let i = 0; i < updatedHtml.length; i += 200) chunks.push(updatedHtml.slice(
     }),
   });
 
-  if (!res.ok) {
-    const err = await res.text();
-    return new Response(err, { status: 500 });
-  }
+  if (!res.ok) return new Response(await res.text(), { status: 500 });
 
-  return new Response(res.body, {
-    headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' },
-  });
+  return new Response(res.body, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' } });
 }
