@@ -33,11 +33,17 @@ Rules:
 - Never use em dashes.
 - Never open with the blog title or a summary of what the blog covers.`;
 
-  const faqQuestions = brief.h2Changes
-    .filter(h => h.reason.toLowerCase().includes('paa') || h.reason.toLowerCase().includes('question') || h.next.includes('?'))
-    .slice(0, 5)
-    .map(h => h.next)
-    .join('\n') || brief.topPainPoints.slice(0, 4).map(p => `Is ${toolName} good for ${p.toLowerCase()}?`).join('\n');
+  // Use real PAA questions from brief, fall back to pain-point questions only if none
+  const faqQuestions = (brief.faqQuestions?.length ?? 0) > 0
+    ? brief.faqQuestions!.join('\n')
+    : brief.topPainPoints.slice(0, 5).map(p => {
+        const q = p.toLowerCase();
+        if (q.includes('pric') || q.includes('cost')) return `How much does ${toolName} cost?`;
+        if (q.includes('free')) return `Does ${toolName} have a free trial?`;
+        if (q.includes('accur')) return `How accurate is ${toolName}?`;
+        if (q.includes('integrat')) return `What does ${toolName} integrate with?`;
+        return `Is ${toolName} worth it for ${p.toLowerCase().replace(/^(no |limited |lack of )/i, '')}?`;
+      }).join('\n');
 
   const prompts: Record<string, string> = {
 
