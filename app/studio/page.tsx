@@ -209,11 +209,13 @@ function getFlagReason(sectionId: string, research: ResearchData, brief: { h2Cha
 }
 
 function extractSectionHtml(bodyHtml: string, sectionId: string): string {
-  // Try to find section by id attribute
-  const byId = new RegExp(`<section[^>]*id=["']${sectionId}["'][^>]*>([\s\S]*?)<\/section>`, 'i');
-  const idMatch = bodyHtml.match(byId);
-  if (idMatch) return idMatch[1].trim();
-  // Fall back to returning empty — section will be written fresh
+  // Use[\s\S]*? with section tags — finds content including nested tags and images
+  try {
+    const escaped = sectionId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const byId = new RegExp(`<section[^>]*id=["']${escaped}["'][^>]*>([\s\S]*?)<\/section>`, 'i');
+    const idMatch = bodyHtml.match(byId);
+    if (idMatch?.[1]) return idMatch[1].trim();
+  } catch { /* ignore regex errors */ }
   return '';
 }
 
@@ -302,7 +304,9 @@ function ReviewSection({
   onRegenerate: (id: string, note: string) => void;
 }) {
   const editRef = useRef<HTMLDivElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [note, setNote] = useState('');
 
   const startEdit = () => {
@@ -328,8 +332,38 @@ function ReviewSection({
   };
 
   const addLink = () => {
-    const url = window.prompt('Enter URL:');
-    if (url) document.execCommand('createLink', false, url);
+    let url = window.prompt('Enter URL:');
+    if (!url) return;
+    // Auto-prepend https:// if user forgot it
+    if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('/')) {
+      url = 'https://' + url;
+    }
+    document.execCommand('createLink', false, url);
+  };
+
+  const addImage = () => {
+    if (imageInputRef.current) imageInputRef.current.click();
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !editRef.current) return;
+    setUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/studio/upload-image', { method: 'POST', body: formData });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      // Insert image at cursor position
+      const img = `<img src="${json.url}" alt="${file.name.replace(/\.[^.]+$/, '')}" style="max-width:100%;height:auto;border-radius:8px;margin:12px 0" />`;
+      document.execCommand('insertHTML', false, img);
+    } catch (err) {
+      alert('Image upload failed: ' + (err instanceof Error ? err.message : 'unknown'));
+    } finally {
+      setUploadingImage(false);
+      if (imageInputRef.current) imageInputRef.current.value = '';
+    }
   };
 
   return (
@@ -347,8 +381,12 @@ function ReviewSection({
             <button onClick={() => document.execCommand('bold')} className="text-xs px-2 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50 font-bold">B</button>
             <button onClick={() => document.execCommand('italic')} className="text-xs px-2 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50 italic">I</button>
             <button onClick={addLink} className="text-xs px-2 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50">🔗</button>
+            <button onClick={addImage} disabled={uploadingImage} className="text-xs px-2 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40">
+              {uploadingImage ? '...' : '🖼'}
+            </button>
             <button onClick={saveEdit} className="text-xs px-3 py-1 rounded bg-gray-900 text-white hover:bg-gray-800 ml-1">Save</button>
             <button onClick={() => setIsEditing(false)} className="text-xs px-2 py-1 rounded border border-gray-200 hover:bg-gray-50">Cancel</button>
+            <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
           </div>
         )}
       </div>
