@@ -1,5 +1,4 @@
-import { ContentBrief, ResearchBrief, KeywordData } from '../types';
-
+import { ContentBrief, ResearchBrief, KeywordData } from './types';
 export function buildConclusionPrompt(
   brief: ContentBrief,
   research: ResearchBrief,
