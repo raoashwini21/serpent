@@ -65,12 +65,23 @@ ${existingH2Block}
 
 TASK:
 1. Produce a final research brief for this blog.
-2. For each H2: show what it currently is (or null if new) and what it should become, with a short reason.
-   - Rewrite H2s to match high-impression GSC queries exactly where possible
-   - Use question format for AEO/featured snippet eligibility
-   - Add new H2s for PAA questions that have no current coverage
-   - Flag H2s that match no keyword signal as "low priority"
-3. Set target keywords from GSC opportunities or SERP signals.
+2. Generate h2Changes — one entry per H2 the blog should have.
+   For UPDATE mode (existingH2s provided): show old vs new with reason.
+   For NEW blog mode (no existingH2s): old=null, isNew=true for all.
+
+   REQUIRED H2s for review/comparison blogs — always include these in order:
+   a. What is [Tool]? — product definition
+   b. [Tool] Features — what it does (MUST always be included)
+   c. [Tool] Pricing 2025 — confirmed pricing
+   d. Is [Tool] Worth It? — pros and cons
+   e. How Can SalesRobot Help? — SalesRobot alternative
+   f. FAQ — PAA questions
+   g. Conclusion
+
+   ADDITIONAL H2s: add PAA questions and GSC keyword opportunities on top of the above.
+   Use question format for AEO. Use 2025 in heading where it fits.
+
+3. Set target keywords from GSC or SERP signals.
 4. Write a SalesRobot positioning angle based on the gaps found.
 
 CURRENT YEAR: 2025. Always use 2025 in titles. Never use 2024 or any other year.
