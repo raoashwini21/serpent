@@ -1,5 +1,4 @@
-import { SectionBrief, ResearchBrief, KeywordData } from '../types';
-
+import { SectionBrief, ResearchBrief, KeywordData } from './types';
 export interface InfographicTemplate {
   prompt: string;
   extractData: (section: SectionBrief, research: ResearchBrief, keywords: KeywordData) => string;
