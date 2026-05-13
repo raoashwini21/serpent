@@ -1,5 +1,4 @@
-import { SectionBrief, ResearchBrief, KeywordData } from '../types';
-
+import { SectionBrief, ResearchBrief, KeywordData } from './types';
 export function buildSalesRobotPrompt(
   section: SectionBrief,
   research: ResearchBrief,
