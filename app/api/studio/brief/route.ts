@@ -35,11 +35,21 @@ export async function POST(req: NextRequest) {
 
   const gscSummary = buildGscSummary(gscRows);
 
+  // Pre-build H2 candidates from PAA — these are real search questions, use them directly
+  const paaH2s = (research.paaQuestions ?? [])
+    .filter(q => q.includes('?'))
+    .slice(0, 4)
+    .join('\n');
+
+  // Filter SERP H2s to question-format only — ignore generic "Tool Features 2025" style
+  const serpQuestionH2s = (research.serpH2s ?? [])
+    .filter(h => /^(what|how|is|does|can|why|when|which|do)/i.test(h.trim()))
+    .slice(0, 4)
+    .join('\n');
+
   const serpContext = hasGsc
-    ? `GSC keyword opportunities (ranked by impressions):\n${gscSummary}`
-    : `No GSC data available. Use SERP/PAA signals instead:
-SERP H2s from competitors: ${research.serpH2s.join(', ')}
-PAA questions: ${research.paaQuestions.join(', ')}`;
+    ? `GSC keyword opportunities (ranked by impressions):\n${gscSummary}\n\nPAA questions found:\n${paaH2s || 'none'}`
+    : `PAA questions (use these directly as H2s where relevant):\n${paaH2s || 'none'}\n\nCompetitor question-format H2s:\n${serpQuestionH2s || 'none'}`;
 
   const existingH2Block = existingH2s.length
     ? `Existing H2s in the blog:\n${existingH2s.map((h, i) => `${i + 1}. ${h}`).join('\n')}`
@@ -69,22 +79,28 @@ TASK:
    For UPDATE mode (existingH2s provided): show old vs new with reason.
    For NEW blog mode (no existingH2s): old=null, isNew=true for all.
 
-   REQUIRED H2s for review/comparison blogs — always include these in order:
-   a. What is [Tool]? — product definition
-   b. [Tool] Features — what it does (MUST always be included)
-   c. [Tool] Pricing 2025 — confirmed pricing
-   d. Is [Tool] Worth It? — pros and cons
-   e. How Can SalesRobot Help? — SalesRobot alternative
-   f. FAQ — PAA questions
-   g. Conclusion
+   REQUIRED H2s — use EXACTLY these formats, replacing [Tool] with the actual tool name:
+   a. "What Is [Tool] and Who Is It For?"
+   b. "What Does [Tool] Actually Do?" — OR use a PAA question about features if one exists
+   c. "How Much Does [Tool] Cost?" — never add year here
+   d. "Is [Tool] Worth It?" — OR use a PAA verdict question if one exists
+   e. "How Can SalesRobot Help?" — always this exact text
+   f. "Frequently Asked Questions" — always this exact text
+   g. "Conclusion" — always this exact text
 
-   ADDITIONAL H2s: add PAA questions and GSC keyword opportunities on top of the above.
-   Use question format for AEO. Use 2025 in heading where it fits.
+   ADDITIONAL H2s: if PAA questions are provided above, insert them before section e.
+   Copy PAA questions exactly as-is — do not rewrite them.
+
+   ABSOLUTE H2 RULES:
+   - Never put a year in any H2
+   - Never write "[Tool] Features", "[Tool] Pricing", "[Tool] Review" as an H2 — always question format
+   - Every H2 must start with: What, How, Is, Does, Can, Why, Which, Do, Should
+   - Under 60 chars each
 
 3. Set target keywords from GSC or SERP signals.
 4. Write a SalesRobot positioning angle based on the gaps found.
 
-CURRENT YEAR: 2026. Always use 2026 in titles and headings. Never use 2024 or 2025.
+CURRENT YEAR: 2026. Use 2026 in the H1 title only. Never put year in H2 or H3 headings.
 
 H1 TITLE RULES — pick the right pattern for the blog type:
 - Review: "[Tool] Review 2026: Is It Worth It?" or "[Tool] Review 2026: Tested & Rated"
