@@ -215,6 +215,12 @@ export default function StudioPage() {
   const [pushResult, setPushResult] = useState<{ slug: string; itemId: string } | null>(null);
   const [error, setError] = useState('');
 
+  // Update mode state
+  const [postSearch, setPostSearch] = useState('');
+  const [postResults, setPostResults] = useState<{id:string;name:string;slug:string;isDraft:boolean;h2s:string[];bodyHtml:string}[]>([]);
+  const [selectedPost, setSelectedPost] = useState<{id:string;name:string;slug:string;h2s:string[];bodyHtml:string} | null>(null);
+  const [fetchingPosts, setFetchingPosts] = useState(false);
+
   const gscRef = useRef<HTMLInputElement>(null);
 
   const handleGscUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -228,6 +234,19 @@ export default function StudioPage() {
       setHasGsc(rows.length > 0);
     };
     reader.readAsText(file);
+  }, []);
+
+  const searchPosts = useCallback(async (q: string) => {
+    setFetchingPosts(true);
+    try {
+      const res = await fetch(`/api/studio/webflow-posts?search=${encodeURIComponent(q)}`);
+      const json = await res.json();
+      setPostResults(json.posts ?? []);
+    } catch {
+      setPostResults([]);
+    } finally {
+      setFetchingPosts(false);
+    }
   }, []);
 
   const runResearch = useCallback(async () => {
@@ -259,10 +278,10 @@ export default function StudioPage() {
     }
 
     setResearch(researchAccum as ResearchData);
-    await runBrief(researchAccum as ResearchData);
+    await runBrief(researchAccum as ResearchData, selectedPost?.h2s ?? []);
   }, [toolName, blogType]);
 
-  const runBrief = useCallback(async (researchData: ResearchData) => {
+  const runBrief = useCallback(async (researchData: ResearchData, existingH2s: string[] = []) => {
     setP4Status('running');
     try {
       const res = await fetch('/api/studio/brief', {
@@ -271,11 +290,11 @@ export default function StudioPage() {
         body: JSON.stringify({
           toolName,
           blogType,
-          blogTitle: blogTitle || `${toolName} Review`,
+          blogTitle: blogTitle || selectedPost?.name || `${toolName} Review`,
           research: researchData,
           gscRows,
           hasGsc,
-          existingH2s: [],
+          existingH2s,
         }),
       });
       const json = await res.json();
@@ -436,7 +455,7 @@ export default function StudioPage() {
       const res = await fetch('/api/studio/push', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sections, brief, blogType }),
+        body: JSON.stringify({ sections, brief, blogType, existingItemId: selectedPost?.id }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error);
@@ -465,7 +484,7 @@ export default function StudioPage() {
                 {(['new', 'update'] as const).map(m => (
                   <button
                     key={m}
-                    onClick={() => setMode(m)}
+                    onClick={() => { setMode(m); setSelectedPost(null); setPostResults([]); }}
                     className={`flex-1 py-2 text-sm rounded-lg border transition-colors ${mode === m ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
                   >
                     {m === 'new' ? 'New blog' : 'Update existing'}
@@ -473,6 +492,51 @@ export default function StudioPage() {
                 ))}
               </div>
             </div>
+
+            {mode === 'update' && (
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Find existing blog</label>
+                <div className="flex gap-2 mb-2">
+                  <input
+                    type="text"
+                    placeholder="Search by title..."
+                    value={postSearch}
+                    onChange={e => setPostSearch(e.target.value)}
+                    className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
+                  />
+                  <button
+                    onClick={() => searchPosts(postSearch)}
+                    className="px-4 py-2 text-sm rounded-lg border border-gray-200 bg-white hover:bg-gray-50"
+                  >
+                    {fetchingPosts ? '...' : 'Search'}
+                  </button>
+                </div>
+                {postResults.length > 0 && (
+                  <div className="border border-gray-200 rounded-lg overflow-hidden max-h-48 overflow-y-auto">
+                    {postResults.map(post => (
+                      <div
+                        key={post.id}
+                        onClick={() => { setSelectedPost(post); setToolName(post.name.split(' ')[0]); }}
+                        className={`px-3 py-2.5 cursor-pointer border-b border-gray-100 last:border-0 hover:bg-gray-50 ${selectedPost?.id === post.id ? 'bg-blue-50' : ''}`}
+                      >
+                        <div className="text-sm font-medium text-gray-800">{post.name}</div>
+                        <div className="text-xs text-gray-400 mt-0.5">
+                          {post.isDraft ? 'Draft' : 'Published'} · {post.h2s.length} H2s · /{post.slug}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {selectedPost && (
+                  <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <div className="text-xs font-medium text-amber-800 mb-1">Selected: {selectedPost.name}</div>
+                    <div className="text-xs text-amber-700">
+                      Current H2s: {selectedPost.h2s.slice(0, 3).join(', ')}{selectedPost.h2s.length > 3 ? ` +${selectedPost.h2s.length - 3} more` : ''}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Tool name</label>
@@ -485,31 +549,35 @@ export default function StudioPage() {
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Blog type</label>
-              <select
-                value={blogType}
-                onChange={e => setBlogType(e.target.value)}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
-              >
-                {BLOG_TYPES.map(t => (
-                  <option key={t.id} value={t.id}>{t.label}</option>
-                ))}
-              </select>
-            </div>
+            {mode === 'new' && (
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Blog type</label>
+                <select
+                  value={blogType}
+                  onChange={e => setBlogType(e.target.value)}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
+                >
+                  {BLOG_TYPES.map(t => (
+                    <option key={t.id} value={t.id}>{t.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Working title <span className="text-gray-400">(optional)</span>
-              </label>
-              <input
-                type="text"
-                placeholder={`${toolName || 'PhantomBuster'} Review 2025`}
-                value={blogTitle}
-                onChange={e => setBlogTitle(e.target.value)}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
-              />
-            </div>
+            {mode === 'new' && (
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Working title <span className="text-gray-400">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder={`${toolName || 'PhantomBuster'} Review 2025`}
+                  value={blogTitle}
+                  onChange={e => setBlogTitle(e.target.value)}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
+                />
+              </div>
+            )}
 
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -531,9 +599,10 @@ export default function StudioPage() {
 
             <button
               onClick={runResearch}
-              className="w-full py-2.5 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 transition-colors"
+              disabled={mode === 'update' && !selectedPost}
+              className="w-full py-2.5 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              Start research
+              {mode === 'update' ? 'Research + update' : 'Start research'}
             </button>
           </div>
         </div>
@@ -552,7 +621,7 @@ export default function StudioPage() {
         <span className="flex-1" />
         {error && <span className="text-xs text-red-500 max-w-xs truncate">{error}</span>}
         <button
-          onClick={() => { setStarted(false); setError(''); setBrief(null); setBriefApproved(false); setSections([]); setResearch(null); setP1Status('pending'); setP2Status('pending'); setP3Status('pending'); setP4Status('pending'); }}
+          onClick={() => { setStarted(false); setError(''); setBrief(null); setBriefApproved(false); setSections([]); setResearch(null); setP1Status('pending'); setP2Status('pending'); setP3Status('pending'); setP4Status('pending'); setSelectedPost(null); setPostResults([]); setPostSearch(''); }}
           className="text-xs text-gray-400 hover:text-gray-600"
         >
           ← Back
