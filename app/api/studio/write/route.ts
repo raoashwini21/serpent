@@ -308,13 +308,9 @@ export async function POST(req: NextRequest) {
         const chunks = updatedHtml.match(/.{1,200}/gs) ?? [updatedHtml];
         for (const chunk of chunks) {
           const event = JSON.stringify({ type: 'content_block_delta', delta: { type: 'text_delta', text: chunk } });
-          controller.enqueue(encoder.encode(`data: ${event}
-
-`));
+          controller.enqueue(encoder.encode('data: ' + event + '\n\n'));
         }
-        controller.enqueue(encoder.encode('data: [DONE]
-
-'));
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
         controller.close();
       }
     });
