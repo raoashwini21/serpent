@@ -73,11 +73,24 @@ TASK:
 3. Set target keywords from GSC opportunities or SERP signals.
 4. Write a SalesRobot positioning angle based on the gaps found.
 
+CURRENT YEAR: 2025. Always use 2025 in titles. Never use 2024 or any other year.
+
+H1 TITLE RULES — pick the right pattern for the blog type:
+- Review: "[Tool] Review 2025: Is It Worth It?" or "[Tool] Review 2025: Tested & Rated"
+- Comparison: "[Tool A] vs [Tool B] 2025: Which Is Better?"
+- Alternatives: "Best [Tool] Alternatives in 2025 (Tested)"
+- Listicle: "[N] Best [Category] Tools in 2025"
+- How-to: "How to [Goal] in 2025: Step-by-Step"
+- Rules: keyword first, year always 2025, under 70 chars
+- Never use: "Ultimate", "Complete", "Comprehensive", "Everything You Need"
+
+META TITLE: under 60 chars, must include keyword and 2025.
+
 Return ONLY this JSON:
 {
-  "h1": "final H1 under 70 chars, keyword first",
-  "metaTitle": "meta title under 60 chars",
-  "metaDescription": "meta description 140-160 chars",
+  "h1": "title following rules above — keyword first, 2025, under 70 chars",
+  "metaTitle": "meta title under 60 chars with 2025",
+  "metaDescription": "meta description 140-160 chars with primary keyword",
   "h2Changes": [
     {
       "old": "existing H2 text or null if new",
