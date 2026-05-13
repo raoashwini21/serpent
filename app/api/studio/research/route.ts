@@ -32,6 +32,22 @@ async function claudeSearch(systemPrompt: string, userPrompt: string): Promise<s
     .join('\n');
 }
 
+function extractJSON(raw: string): unknown {
+  // Try direct parse first
+  const trimmed = raw.replace(/```json|```/g, '').trim();
+  try { return JSON.parse(trimmed); } catch { /* fall through */ }
+  // Find first { or [ and last } or ]
+  const start = Math.min(
+    trimmed.indexOf('{') === -1 ? Infinity : trimmed.indexOf('{'),
+    trimmed.indexOf('[') === -1 ? Infinity : trimmed.indexOf('['),
+  );
+  const endBrace = trimmed.lastIndexOf('}');
+  const endBracket = trimmed.lastIndexOf(']');
+  const end = Math.max(endBrace, endBracket);
+  if (start === Infinity || end === -1) throw new Error('No JSON found in response');
+  return JSON.parse(trimmed.slice(start, end + 1));
+}
+
 export async function POST(req: NextRequest) {
   const { toolName, blogType, phase } = await req.json();
 
@@ -39,9 +55,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'toolName and phase required' }, { status: 400 });
   }
 
-  const system = `You are a research assistant for SalesRobot's content team.
-Extract factual data only. Return clean JSON. No markdown. No prose.
-Today's date context: 2025.`;
+  const system = `You are a data extraction API. You ONLY output raw JSON. 
+No prose. No explanation. No "Based on". No preamble. No postamble.
+Your entire response must be a single valid JSON object or array, nothing else.
+If you cannot find data, return empty arrays. Never return text outside the JSON.`;
 
   try {
     if (phase === 1) {
@@ -67,7 +84,7 @@ Return ONLY this JSON shape:
 }
 Return only valid JSON. No explanation.`);
 
-      const json = JSON.parse(raw.replace(/```json|```/g, '').trim());
+      const json = extractJSON(raw);
       return NextResponse.json({ phase: 1, data: json });
     }
 
@@ -88,7 +105,7 @@ Return ONLY this JSON shape:
 }
 Max 8 serpH2s, max 6 paaQuestions. Return only valid JSON.`);
 
-      const json = JSON.parse(raw.replace(/```json|```/g, '').trim());
+      const json = extractJSON(raw);
       return NextResponse.json({ phase: 2, data: json });
     }
 
@@ -110,7 +127,7 @@ Return ONLY this JSON shape:
 }
 Max 6 signals. Prioritise complaints and switching reasons. Return only valid JSON.`);
 
-      const json = JSON.parse(raw.replace(/```json|```/g, '').trim());
+      const json = extractJSON(raw);
       return NextResponse.json({ phase: 3, data: json });
     }
 
