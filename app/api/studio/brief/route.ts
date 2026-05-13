@@ -119,7 +119,16 @@ Return only valid JSON. No markdown.`;
     .join('');
 
   try {
-    const brief = JSON.parse(text.replace(/```json|```/g, '').trim());
+    const trimmed = text.replace(/```json|```/g, '').trim();
+    let jsonStr = trimmed;
+    // Extract JSON block if Claude added prose around it
+    const start = Math.min(
+      trimmed.indexOf('{') === -1 ? Infinity : trimmed.indexOf('{'),
+      trimmed.indexOf('[') === -1 ? Infinity : trimmed.indexOf('['),
+    );
+    const end = Math.max(trimmed.lastIndexOf('}'), trimmed.lastIndexOf(']'));
+    if (start !== Infinity && end !== -1) jsonStr = trimmed.slice(start, end + 1);
+    const brief = JSON.parse(jsonStr);
     return NextResponse.json({ brief });
   } catch {
     return NextResponse.json({ error: 'Failed to parse brief JSON', raw: text }, { status: 500 });
