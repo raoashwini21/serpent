@@ -1,4 +1,4 @@
-import { ContentBrief, ResearchBrief, KeywordData } from '../types';
+import { ContentBrief, ResearchBrief, KeywordData } from './types';
 
 export function buildTLDRPrompt(
   brief: ContentBrief,
