@@ -191,6 +191,32 @@ function SectionCard({
 }
 
 
+
+function getFlagReason(sectionId: string, research: ResearchData, brief: { h2Changes: {old: string|null; next: string; reason: string; isNew: boolean}[] }): string {
+  if (sectionId === 'pricing') {
+    const changes = (research.pricing ?? []).filter(f => f.type !== 'signal');
+    if (changes.length) return changes.map(c => c.text).slice(0, 2).join('; ');
+  }
+  if (sectionId === 'features') {
+    const changes = (research.features ?? []).filter(f => f.type !== 'signal');
+    if (changes.length) return changes.map(c => c.text).slice(0, 2).join('; ');
+  }
+  if (sectionId === 'faq') return 'New H2/PAA opportunities found';
+  if (sectionId === 'tldr') return 'Update summary with latest findings';
+  if (sectionId === 'salesrobot') return 'Refresh positioning angle';
+  if (sectionId === 'conclusion') return 'Update verdict with new data';
+  return 'Needs review';
+}
+
+function extractSectionHtml(bodyHtml: string, sectionId: string): string {
+  // Try to find section by id attribute
+  const byId = new RegExp(`<section[^>]*id=["']${sectionId}["'][^>]*>([\s\S]*?)<\/section>`, 'i');
+  const idMatch = bodyHtml.match(byId);
+  if (idMatch) return idMatch[1].trim();
+  // Fall back to returning empty — section will be written fresh
+  return '';
+}
+
 interface ReviewScreenProps {
   sections: SectionDraft[];
   brief: Brief;
@@ -499,17 +525,46 @@ export default function StudioPage() {
       setP4Status('done');
 
       const sectionIds = BLOG_SECTIONS[blogType] ?? BLOG_SECTIONS['tool-review'];
-      setSections(sectionIds.map(id => ({
-        id,
-        label: SECTION_LABELS[id] ?? id,
-        status: 'pending',
-        html: '',
-      })));
+
+      if (mode === 'update' && selectedPost?.bodyHtml) {
+        // Extract existing section HTML from the fetched post
+        // Flag sections that research found changes for
+        const changedKeywords = [
+          ...(researchData.pricing ?? []).filter(f => f.type !== 'signal').map(() => 'pricing'),
+          ...(researchData.features ?? []).filter(f => f.type !== 'signal').map(() => 'features'),
+        ];
+        const hasH2Changes = json.brief.h2Changes.some((h: {isNew: boolean}) => h.isNew);
+
+        setSections(sectionIds.map(id => {
+          const isFlagged =
+            (id === 'pricing' && changedKeywords.includes('pricing')) ||
+            (id === 'features' && changedKeywords.includes('features')) ||
+            (id === 'tldr') ||
+            (id === 'salesrobot') ||
+            (id === 'conclusion') ||
+            (id === 'faq' && hasH2Changes);
+
+          return {
+            id,
+            label: SECTION_LABELS[id] ?? id,
+            status: isFlagged ? 'flagged' : 'skipped',
+            flagReason: isFlagged ? getFlagReason(id, researchData, json.brief) : undefined,
+            html: extractSectionHtml(selectedPost.bodyHtml, id),
+          };
+        }));
+      } else {
+        setSections(sectionIds.map(id => ({
+          id,
+          label: SECTION_LABELS[id] ?? id,
+          status: 'pending',
+          html: '',
+        })));
+      }
     } catch (e) {
       setP4Status('error');
       setError(`Brief failed: ${e instanceof Error ? e.message : 'unknown'}`);
     }
-  }, [toolName, blogType, blogTitle, gscRows, hasGsc]);
+  }, [toolName, blogType, blogTitle, gscRows, hasGsc, mode, selectedPost]);
 
   const approveBrief = useCallback(() => {
     setBriefApproved(true);
@@ -528,6 +583,10 @@ export default function StudioPage() {
     const sectionIds = BLOG_SECTIONS[blogType] ?? BLOG_SECTIONS['tool-review'];
 
     for (const sectionId of sectionIds) {
+      // In update mode, skip sections that don't need changes
+      const currentSection = sections.find(s => s.id === sectionId);
+      if (mode === 'update' && currentSection?.status === 'skipped') continue;
+
       setSections(prev => prev.map(s => s.id === sectionId ? { ...s, status: 'writing' } : s));
 
       try {
@@ -539,7 +598,7 @@ export default function StudioPage() {
             brief,
             toolName,
             blogType,
-            existingSectionHtml: '',
+            existingSectionHtml: currentSection?.html ?? '',
           }),
         });
 
@@ -584,7 +643,7 @@ export default function StudioPage() {
     }
 
     setWriting(false);
-  }, [brief, blogType, toolName]);
+  }, [brief, blogType, toolName, mode, sections]);
 
   const regenerateSection = useCallback(async (sectionId: string, note: string) => {
     if (!brief) return;
@@ -663,8 +722,8 @@ export default function StudioPage() {
     }
   }, [sections, brief, blogType]);
 
-  const doneSections = sections.filter(s => s.status === 'done').length;
-  const allDone = sections.length > 0 && doneSections === sections.length;
+  const doneSections = sections.filter(s => s.status === 'done' || s.status === 'skipped').length;
+  const allDone = sections.length > 0 && doneSections === sections.length && !writing;
 
   if (!started) {
     return (
@@ -903,7 +962,7 @@ export default function StudioPage() {
                       onClick={approveBrief}
                       className="text-xs px-3 py-1.5 rounded bg-gray-900 text-white hover:bg-gray-800 flex-1"
                     >
-                      Approve — start writing
+                      {mode === 'update' ? 'Apply fixes to flagged sections' : 'Approve — start writing'}
                     </button>
                   </div>
                 </>
@@ -923,7 +982,7 @@ export default function StudioPage() {
             <span className="text-xs font-medium text-gray-400 uppercase tracking-wide flex-1">Draft</span>
             {writing && <span className="text-xs text-blue-500 animate-pulse">Writing...</span>}
             {allDone && !writing && <span className="text-xs text-green-600">All sections done</span>}
-            {!briefApproved && <span className="text-xs text-gray-400">Waiting for brief approval</span>}
+            {!briefApproved && <span className="text-xs text-gray-400">{mode === 'update' ? 'Review flagged sections below' : 'Waiting for brief approval'}</span>}
           </div>
 
           <div className="p-3">
