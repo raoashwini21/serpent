@@ -18,6 +18,8 @@ export interface ResearchData {
   features: Finding[];
   ratings: { g2?: string; capterra?: string };
   redditSignals: Finding[];
+  youtubeSignals: Finding[];
+  reviewSignals: Finding[];
   serpH2s: string[];
   paaQuestions: string[];
 }
