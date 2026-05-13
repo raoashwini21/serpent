@@ -418,13 +418,27 @@ export default function StudioPage() {
     reader.readAsText(file);
   }, []);
 
+  useEffect(() => {
+    if (mode === 'update') searchPosts('');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
+
   const searchPosts = useCallback(async (q: string) => {
     setFetchingPosts(true);
+    setError('');
     try {
       const res = await fetch(`/api/studio/webflow-posts?search=${encodeURIComponent(q)}`);
       const json = await res.json();
-      setPostResults(json.posts ?? []);
-    } catch {
+      if (!res.ok) {
+        setError(`Webflow fetch failed: ${json.error ?? res.status}`);
+        setPostResults([]);
+        return;
+      }
+      const posts = json.posts ?? [];
+      setPostResults(posts);
+      if (posts.length === 0) setError(q ? `No blogs found matching "${q}" — try a shorter search term` : 'No blogs found in Webflow collection');
+    } catch (e) {
+      setError(`Search failed: ${e instanceof Error ? e.message : 'unknown'}`);
       setPostResults([]);
     } finally {
       setFetchingPosts(false);
@@ -684,6 +698,7 @@ export default function StudioPage() {
                     placeholder="Search by title..."
                     value={postSearch}
                     onChange={e => setPostSearch(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') searchPosts(postSearch); }}
                     className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
                   />
                   <button
