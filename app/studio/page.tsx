@@ -408,6 +408,9 @@ export default function StudioPage() {
   const [p2Status, setP2Status] = useState<PhaseStatus>('pending');
   const [p3Status, setP3Status] = useState<PhaseStatus>('pending');
   const [p4Status, setP4Status] = useState<PhaseStatus>('pending');
+  const [p1bStatus, setP1bStatus] = useState<PhaseStatus>('pending');
+  const [p3aStatus, setP3aStatus] = useState<PhaseStatus>('pending');
+  const [p3bStatus, setP3bStatus] = useState<PhaseStatus>('pending');
 
   const [research, setResearch] = useState<ResearchData | null>(null);
   const [gscRows, setGscRows] = useState<GscRow[]>([]);
@@ -476,25 +479,31 @@ export default function StudioPage() {
     setError('');
     setStarted(true);
 
-    const phases = [1, 2, 3] as const;
-    const setters = [setP1Status, setP2Status, setP3Status];
+    const phases = [
+      { id: '1a', setter: setP1Status,  label: '1a' },
+      { id: '1b', setter: setP1bStatus, label: '1b' },
+      { id: 2,    setter: setP2Status,  label: '2'  },
+      { id: '3a', setter: setP3aStatus, label: '3a' },
+      { id: '3b', setter: setP3bStatus, label: '3b' },
+    ] as const;
+
     const researchAccum: Partial<ResearchData> = { toolName };
 
-    for (let i = 0; i < phases.length; i++) {
-      setters[i]('running');
+    for (const phase of phases) {
+      phase.setter('running');
       try {
         const res = await fetch('/api/studio/research', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ toolName, blogType, phase: phases[i] }),
+          body: JSON.stringify({ toolName, blogType, phase: phase.id }),
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error);
         Object.assign(researchAccum, json.data);
-        setters[i]('done');
+        phase.setter('done');
       } catch (e) {
-        setters[i]('error');
-        setError(`Phase ${phases[i]} failed: ${e instanceof Error ? e.message : 'unknown'}`);
+        phase.setter('error');
+        setError(`Phase ${phase.label} failed: ${e instanceof Error ? e.message : 'unknown'}`);
         return;
       }
     }
@@ -904,15 +913,17 @@ export default function StudioPage() {
           <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-100">
             <span className="text-xs font-medium text-gray-400 uppercase tracking-wide flex-1">Research</span>
             <span className="text-xs text-gray-400">
-              {[p1Status, p2Status, p3Status, p4Status].filter(s => s === 'done').length} / 4 phases
+              {[p1Status, p1bStatus, p2Status, p3aStatus, p3bStatus, p4Status].filter(s => s === 'done').length} / 6 phases
             </span>
           </div>
 
           <div className="p-3 space-y-2">
             {[
-              { n: 1, label: 'Tool site + G2 + Capterra', status: p1Status, data: research ? [...(research.pricing ?? []), ...(research.features ?? [])] : [] },
-              { n: 2, label: 'SERP + PAA signals' + (hasGsc ? ' + GSC' : ''), status: p2Status, data: research ? (research.serpH2s ?? []).map(h => ({ type: 'signal' as const, text: h })) : [] },
-              { n: 3, label: 'Reddit signals', status: p3Status, data: research?.redditSignals ?? [] },
+              { n: '1a', label: 'Pricing + features', status: p1Status,  data: research ? [...(research.pricing ?? []), ...(research.features ?? [])] : [] },
+              { n: '1b', label: 'G2 + Capterra reviews', status: p1bStatus, data: research ? (research.reviewSignals ?? []) : [] },
+              { n: '2',  label: 'SERP + PAA' + (hasGsc ? ' + GSC' : ''), status: p2Status, data: research ? (research.serpH2s ?? []).map(h => ({ type: 'signal' as const, text: h })) : [] },
+              { n: '3a', label: 'Reddit signals', status: p3aStatus, data: research?.redditSignals ?? [] },
+              { n: '3b', label: 'YouTube signals', status: p3bStatus, data: research?.youtubeSignals ?? [] },
             ].map(phase => (
               <div key={phase.n} className="border border-gray-200 rounded-lg overflow-hidden">
                 <div className="flex items-center gap-2 px-3 py-2 bg-white">
