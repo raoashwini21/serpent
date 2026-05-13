@@ -326,67 +326,18 @@ function ReviewSection({
   onEdit: (id: string, html: string) => void;
   onRegenerate: (id: string, note: string) => void;
 }) {
-  const editRef = useRef<HTMLDivElement>(null);
-  const imageInputRef = useRef<HTMLInputElement>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false);
+  const [editText, setEditText] = useState('');
   const [note, setNote] = useState('');
 
   const startEdit = () => {
+    setEditText(htmlToText(section.html));
     setIsEditing(true);
-    setTimeout(() => {
-      if (editRef.current) {
-        editRef.current.innerHTML = section.html;
-        editRef.current.focus();
-        const range = document.createRange();
-        range.selectNodeContents(editRef.current);
-        range.collapse(false);
-        window.getSelection()?.removeAllRanges();
-        window.getSelection()?.addRange(range);
-      }
-    }, 30);
   };
 
   const saveEdit = () => {
-    if (editRef.current) {
-      onEdit(section.id, editRef.current.innerHTML);
-    }
+    onEdit(section.id, textToHtml(editText));
     setIsEditing(false);
-  };
-
-  const addLink = () => {
-    let url = window.prompt('Enter URL:');
-    if (!url) return;
-    // Auto-prepend https:// if user forgot it
-    if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('/')) {
-      url = 'https://' + url;
-    }
-    document.execCommand('createLink', false, url);
-  };
-
-  const addImage = () => {
-    if (imageInputRef.current) imageInputRef.current.click();
-  };
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !editRef.current) return;
-    setUploadingImage(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch('/api/studio/upload-image', { method: 'POST', body: formData });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error);
-      // Insert image at cursor position
-      const img = `<img src="${json.url}" alt="${file.name.replace(/\.[^.]+$/, '')}" style="max-width:100%;height:auto;border-radius:8px;margin:12px 0" />`;
-      document.execCommand('insertHTML', false, img);
-    } catch (err) {
-      alert('Image upload failed: ' + (err instanceof Error ? err.message : 'unknown'));
-    } finally {
-      setUploadingImage(false);
-      if (imageInputRef.current) imageInputRef.current.value = '';
-    }
   };
 
   return (
@@ -401,20 +352,20 @@ function ReviewSection({
           </button>
         ) : (
           <div className="flex items-center gap-1">
-            <button onClick={() => document.execCommand('bold')} className="text-xs px-2 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50 font-bold">B</button>
-            <button onClick={() => document.execCommand('italic')} className="text-xs px-2 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50 italic">I</button>
-            <button onClick={saveEdit} className="text-xs px-3 py-1 rounded bg-gray-900 text-white hover:bg-gray-800 ml-1">Save</button>
+            <button onClick={saveEdit} className="text-xs px-3 py-1 rounded bg-gray-900 text-white hover:bg-gray-800">Save</button>
             <button onClick={() => setIsEditing(false)} className="text-xs px-2 py-1 rounded border border-gray-200 hover:bg-gray-50">Cancel</button>
           </div>
         )}
       </div>
 
       {isEditing ? (
-        <div
-          ref={editRef}
-          contentEditable
-          suppressContentEditableWarning
-          className="prose prose-gray max-w-none text-sm leading-relaxed border border-blue-200 rounded-lg p-3 bg-blue-50 outline-none min-h-24"
+        <textarea
+          className="w-full text-sm leading-relaxed border border-blue-200 rounded-lg p-3 bg-blue-50 outline-none resize-none"
+          style={{ fontFamily: 'inherit', minHeight: '200px' }}
+          rows={Math.max(6, editText.split('\n').length + 2)}
+          value={editText}
+          onChange={e => setEditText(e.target.value)}
+          autoFocus
         />
       ) : (
         <div
