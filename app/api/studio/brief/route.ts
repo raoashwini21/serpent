@@ -55,7 +55,9 @@ RESEARCH FINDINGS:
 Pricing changes: ${JSON.stringify(research.pricing)}
 Feature changes: ${JSON.stringify(research.features)}
 Ratings: ${JSON.stringify(research.ratings)}
-Reddit signals: ${JSON.stringify(research.redditSignals)}
+Reddit signals: ${JSON.stringify(research.redditSignals ?? [])}
+YouTube signals: ${JSON.stringify(research.youtubeSignals ?? [])}
+G2/Capterra signals: ${JSON.stringify(research.reviewSignals ?? [])}
 
 ${serpContext}
 
