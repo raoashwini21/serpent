@@ -96,12 +96,14 @@ function SectionCard({
     skipped: 'bg-gray-50 text-gray-400',
   };
 
+  const isFullUpdate = section.id === 'full-update';
+
   const stateLabel: Record<SectionDraft['status'], string> = {
     pending: 'pending',
-    flagged: 'will rewrite',
-    writing: 'writing...',
+    flagged: isFullUpdate ? 'will patch' : 'will rewrite',
+    writing: isFullUpdate ? 'patching...' : 'writing...',
     done: 'done',
-    skipped: 'skipped',
+    skipped: isFullUpdate ? 'no changes needed' : 'skipped',
   };
 
   return (
@@ -116,6 +118,19 @@ function SectionCard({
       {section.flagReason && section.status === 'flagged' && (
         <div className="px-3 py-1.5 bg-amber-50 text-xs text-amber-700 border-t border-amber-100">
           {section.flagReason}
+        </div>
+      )}
+
+      {section.id === 'full-update' && section.html && section.status !== 'writing' && section.status !== 'done' && (
+        <div className="border-t border-gray-100">
+          <div className="px-3 py-1.5 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+            <span className="text-xs text-gray-400">Existing blog content (preserved)</span>
+            <span className="text-xs text-gray-400">{section.html.length} chars</span>
+          </div>
+          <div
+            className="px-3 py-2 prose prose-sm max-w-none text-xs max-h-64 overflow-y-auto"
+            dangerouslySetInnerHTML={{ __html: section.html }}
+          />
         </div>
       )}
 
