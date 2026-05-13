@@ -305,7 +305,8 @@ export async function POST(req: NextRequest) {
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       start(controller) {
-        const chunks = updatedHtml.match(/.{1,200}/gs) ?? [updatedHtml];
+        const chunks: string[] = [];
+for (let i = 0; i < updatedHtml.length; i += 200) chunks.push(updatedHtml.slice(i, i + 200));
         for (const chunk of chunks) {
           const event = JSON.stringify({ type: 'content_block_delta', delta: { type: 'text_delta', text: chunk } });
           controller.enqueue(encoder.encode('data: ' + event + '\n\n'));
