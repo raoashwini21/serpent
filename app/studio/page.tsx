@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import type {
-  StudioSession,
   Finding,
   GscRow,
   ResearchData,
@@ -208,7 +207,7 @@ export default function StudioPage() {
   const [hasGsc, setHasGsc] = useState(false);
   const [brief, setBrief] = useState<Brief | null>(null);
   const [briefApproved, setBriefApproved] = useState(false);
-  const [editingBrief, setEditingBrief] = useState(false);
+  // editingBrief state reserved for future inline brief editing
 
   const [sections, setSections] = useState<SectionDraft[]>([]);
   const [writing, setWriting] = useState(false);
@@ -299,9 +298,14 @@ export default function StudioPage() {
 
   const approveBrief = useCallback(() => {
     setBriefApproved(true);
-    setEditingBrief(false);
-    startWriting();
-  }, [brief]);
+  }, []);
+
+  useEffect(() => {
+    if (briefApproved && brief) {
+      startWriting();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [briefApproved]);
 
   const startWriting = useCallback(async () => {
     if (!brief) return;
@@ -609,7 +613,7 @@ export default function StudioPage() {
                   </div>
                   <div className="flex gap-2 p-2 border-t border-gray-100">
                     <button
-                      onClick={() => setEditingBrief(!editingBrief)}
+                      onClick={() => {}}
                       className="text-xs px-3 py-1.5 rounded border border-gray-200 bg-white hover:bg-gray-50"
                     >
                       Edit brief
