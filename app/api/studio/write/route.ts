@@ -201,6 +201,8 @@ H2: "Conclusion"
 Do not summarise the whole blog. Just the verdict.`,
   };
 
+  // full-update is handled entirely by the isUpdate branch above
+  // this fallback only runs for new blog sections
   return prompts[sectionId] ?? `${base}
 
 SECTION: ${sectionId} — 150-200 words.
