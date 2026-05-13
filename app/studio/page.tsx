@@ -403,13 +403,8 @@ function ReviewSection({
           <div className="flex items-center gap-1">
             <button onClick={() => document.execCommand('bold')} className="text-xs px-2 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50 font-bold">B</button>
             <button onClick={() => document.execCommand('italic')} className="text-xs px-2 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50 italic">I</button>
-            <button onClick={addLink} className="text-xs px-2 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50">🔗</button>
-            <button onClick={addImage} disabled={uploadingImage} className="text-xs px-2 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40">
-              {uploadingImage ? '...' : '🖼'}
-            </button>
             <button onClick={saveEdit} className="text-xs px-3 py-1 rounded bg-gray-900 text-white hover:bg-gray-800 ml-1">Save</button>
             <button onClick={() => setIsEditing(false)} className="text-xs px-2 py-1 rounded border border-gray-200 hover:bg-gray-50">Cancel</button>
-            <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
           </div>
         )}
       </div>
