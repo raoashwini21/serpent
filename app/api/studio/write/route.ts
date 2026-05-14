@@ -50,7 +50,9 @@ Say what this review covers. Do not list features or pros/cons.`;
 }
 
 function promptWhatIs(brief: Brief, toolName: string, note?: string): string {
-  const h2 = h2For(brief, ['what is', 'what'], `What Is ${toolName} and Who Is It For?`);
+  const h2 = brief.h2Changes?.find(h =>
+    /what is|who is/i.test(h.next)
+  )?.next ?? `What Is ${toolName} and Who Is It For?`;
   return `${ctx(brief, toolName, note)}
 
 Write the "What is it?" section. 150-200 words.
@@ -88,7 +90,11 @@ End with one honest sentence on value. No SalesRobot mention here.`;
 }
 
 function promptProsCons(brief: Brief, toolName: string, note?: string): string {
-  const h2 = h2For(brief, ['worth', 'pros', 'cons', 'honest', 'accurate', 'good'], `Is ${toolName} Worth It?`);
+  // Never use 'what is' style H2 for pros-cons — hardcode the verdict question
+  const h2 = brief.h2Changes?.find(h =>
+    /worth|pros|cons|honest|accurate|good|should|right/i.test(h.next) &&
+    !/what is|who is|how does/i.test(h.next)
+  )?.next ?? `Is ${toolName} Worth It?`;
   return `${ctx(brief, toolName, note)}
 
 Write the pros and cons section. 200-250 words.
