@@ -139,7 +139,8 @@ function SectionCard({
           {editing ? (
             <div className="border-t border-gray-100">
               <textarea
-                className="w-full p-3 text-xs font-mono bg-gray-50 border-0 resize-none"
+                className="w-full p-3 text-xs bg-gray-50 border-0 resize-none leading-relaxed"
+                style={{ fontFamily: 'inherit' }}
                 rows={8}
                 value={editHtml}
                 onChange={e => setEditHtml(e.target.value)}
@@ -147,7 +148,7 @@ function SectionCard({
               <div className="flex gap-2 p-2 border-t border-gray-100">
                 <button
                   className="text-xs px-3 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50"
-                  onClick={() => { onEdit(section.id, editHtml); setEditing(false); }}
+                  onClick={() => { onEdit(section.id, textToHtml(editHtml)); setEditing(false); }}
                 >
                   Save
                 </button>
@@ -160,17 +161,19 @@ function SectionCard({
               </div>
             </div>
           ) : (
-            <div
-              className="px-3 py-2 border-t border-gray-100 text-xs text-gray-500 bg-gray-50 prose prose-sm max-w-none"
-              dangerouslySetInnerHTML={{ __html: section.html.slice(0, 300) + (section.html.length > 300 ? '...' : '') }}
-            />
+            <div className="px-3 py-2 border-t border-gray-100 text-xs text-gray-500 bg-gray-50 leading-relaxed">
+              {(() => {
+                const plain = section.html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+                return plain.length > 280 ? plain.slice(0, 280) + '...' : plain;
+              })()}
+            </div>
           )}
 
           {!editing && (
             <div className="flex gap-2 px-3 py-2 border-t border-gray-100">
               <button
                 className="text-xs px-2 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50"
-                onClick={() => { setEditHtml(section.html); setEditing(true); }}
+                onClick={() => { setEditHtml(htmlToText(section.html)); setEditing(true); }}
               >
                 Edit
               </button>
