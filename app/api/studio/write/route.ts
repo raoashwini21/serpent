@@ -350,21 +350,43 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Step 2 — Claude fact-checks pricing/features/years only
+    // Step 2 — Claude fact-checks pricing/features/years
+    // Pass plain-text blog content so Claude can find exact strings to replace
+    const blogPlainText = htmlAfterH2s
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 6000); // enough to cover most blogs
+
     const updatePrompt = `You are a fact-checker reviewing a blog post for outdated information.
 
-CONFIRMED CURRENT FACTS:
-- Pricing: ${brief.confirmedPricing}
-- Features: ${(brief.confirmedFeatures ?? []).slice(0, 6).join(', ')}
-- Pain points: ${(brief.topPainPoints ?? []).slice(0, 3).join(', ')}
+BLOG CONTENT (read carefully — find exact text to fix):
+${blogPlainText}
+
+CONFIRMED CURRENT FACTS TO CHECK AGAINST:
+- SalesRobot pricing: Starter $59/month, Advanced $79/month, Professional $99/month (35% off annually)
+- ${toolName} current pricing: ${brief.confirmedPricing || 'check their site'}
+- ${toolName} current features: ${(brief.confirmedFeatures ?? []).slice(0, 8).join(', ')}
+- ${toolName} pain points: ${(brief.topPainPoints ?? []).slice(0, 5).join(', ')}
 ${_note ? `Editor note: ${_note}` : ''}
 
-Find outdated text and return ONLY a JSON array of find/replace pairs.
-Focus on: wrong pricing numbers, wrong year (2024/2025 to 2026), removed features.
-Do NOT touch H2 headings.
+Find ALL outdated content and return exact find/replace pairs. Look for:
+1. Wrong SalesRobot pricing (any mention of "$99/month" or "$99 per month" as SalesRobot's price — replace with "$59-$99/month")
+2. Wrong ${toolName} pricing (any numbers that differ from confirmed pricing above)
+3. Year references: 2023/2024/2025 in prose → 2026
+4. Removed or renamed features of ${toolName} still mentioned
+5. Any stats or claims that contradict the confirmed facts above
+6. Wrong competitor tool names (e.g. "Autoklose" if that's not the tool being compared)
 
-Return ONLY: [{ "find": "exact text", "replace": "corrected text" }]
-Maximum 8 pairs. Return [] if nothing needs changing. Valid JSON only.`;
+Rules:
+- "find" must be an EXACT substring copied from the blog text above — no paraphrasing
+- Replace with accurate corrected text that fits naturally in context
+- Maximum 12 pairs
+- Only fix things that are clearly wrong based on confirmed facts
+- Return [] if nothing needs changing
+- Valid JSON only, no explanation
+
+[{ "find": "exact text from blog", "replace": "corrected text" }]`;
 
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -398,6 +420,45 @@ Maximum 8 pairs. Return [] if nothing needs changing. Valid JSON only.`;
     updatedHtml = updatedHtml.replace(/\[2025\]/g, '[2026]');
     updatedHtml = updatedHtml.replace(/Updated 2024/g, 'Updated 2026');
     updatedHtml = updatedHtml.replace(/Updated 2025/g, 'Updated 2026');
+
+    // Step 2b — Always rewrite SalesRobot section with current features
+    // Find and replace the SalesRobot section in the blog
+    const srH2Regex = /<h[23][^>]*>([\s\S]*?salesrobot[\s\S]*?)<\/h[23]>/i;
+    const srH2Match = updatedHtml.match(srH2Regex);
+
+    if (srH2Match) {
+      // Found a SalesRobot H2 — rewrite from that point to the next H2
+      const srH2Index = updatedHtml.indexOf(srH2Match[0]);
+      const afterSrH2 = updatedHtml.slice(srH2Index + srH2Match[0].length);
+      const nextH2Match = afterSrH2.match(/<h2[^>]*>/i);
+      const srSectionEnd = nextH2Match
+        ? srH2Index + srH2Match[0].length + afterSrH2.indexOf(nextH2Match[0])
+        : updatedHtml.length;
+
+      const newSrHtml = promptSalesRobot(brief, toolName);
+      const srRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY!, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 800,
+          stream: false,
+          system: MASTER_SYSTEM_PROMPT,
+          messages: [{ role: 'user', content: newSrHtml }],
+        }),
+      });
+      if (srRes.ok) {
+        const srData = await srRes.json();
+        const newSrSection = srData.content
+          .filter((b: { type: string }) => b.type === 'text')
+          .map((b: { text: string }) => b.text)
+          .join('');
+        if (newSrSection.trim()) {
+          updatedHtml = updatedHtml.slice(0, srH2Index) + newSrSection + '
+' + updatedHtml.slice(srSectionEnd);
+        }
+      }
+    }
 
     // Step 3 — Write and insert new sections
     const newH2s = (brief.h2Changes ?? []).filter(
