@@ -1178,11 +1178,14 @@ export default function StudioPage() {
                         key={post.id}
                         onClick={() => {
                           setSelectedPost(post);
-                          // Extract tool name — skip generic words like 'in-depth', 'best', 'top', 'review'
-                          const skip = new Set(['in-depth', 'in', 'best', 'top', 'the', 'a', 'an', 'review', 'vs', 'alternative', 'alternatives', 'how', 'why', 'what', 'guide']);
-                          const words = post.name.replace(/[^a-zA-Z0-9. ]/g, '').split(' ');
-                          const toolWord = words.find(w => w.length > 2 && !skip.has(w.toLowerCase())) ?? words[0];
-                          setToolName(toolWord);
+                          // Extract tool name from slug — most reliable source
+                          // slug is like 'ongage-review' or 'phantombuster-alternatives'
+                          const stopWords = new Set(['review', 'alternative', 'alternatives', 'vs', 'best', 'top', 'how', 'to', 'guide', 'comparison', 'in', 'depth', 'the', 'a', 'an', 'and', 'or', 'for', 'is', 'are', 'why', 'what', 'does', 'do', 'can', 'should', 'will', 'with', 'without', 'pricing', 'cost', 'free', 'trial', 'tips', 'tools', 'tool', 'platform', 'software', 'app', 'updated', 'complete', 'ultimate', 'comprehensive']);
+                          const slugWords = post.slug.split('-').filter(w => w.length > 1 && !stopWords.has(w.toLowerCase()));
+                          const fromSlug = slugWords[0] ?? '';
+                          // Capitalise first letter
+                          const toolGuess = fromSlug.charAt(0).toUpperCase() + fromSlug.slice(1);
+                          setToolName(toolGuess);
                         }}
                         className={`px-3 py-2.5 cursor-pointer border-b border-gray-100 last:border-0 hover:bg-gray-50 ${selectedPost?.id === post.id ? 'bg-blue-50' : ''}`}
                       >
