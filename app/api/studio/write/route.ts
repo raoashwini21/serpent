@@ -378,15 +378,28 @@ Maximum 8 pairs. Return [] if nothing needs changing. Valid JSON only.`;
     const pairs = extractJSONArray(raw);
     let updatedHtml = pairs.length > 0 ? applyFindReplace(htmlAfterH2s, pairs) : htmlAfterH2s;
 
+    // Always fix year references in code — reliable, no Claude needed
+    updatedHtml = updatedHtml.replace(/in 2024/g, 'in 2026');
+    updatedHtml = updatedHtml.replace(/in 2025/g, 'in 2026');
+    updatedHtml = updatedHtml.replace(/for 2024/g, 'for 2026');
+    updatedHtml = updatedHtml.replace(/for 2025/g, 'for 2026');
+    updatedHtml = updatedHtml.replace(/\[2024\]/g, '[2026]');
+    updatedHtml = updatedHtml.replace(/\[2025\]/g, '[2026]');
+    updatedHtml = updatedHtml.replace(/Updated 2024/g, 'Updated 2026');
+    updatedHtml = updatedHtml.replace(/Updated 2025/g, 'Updated 2026');
+
     // Step 3 — Write and insert new sections
     const newH2s = (brief.h2Changes ?? []).filter(
       (h: { isNew: boolean; next: string }) => h.isNew
     );
 
     for (const h of newH2s) {
-      // Skip structural sections that don't need new content
-      const skip = ['Conclusion', 'Frequently Asked Questions', 'How Can SalesRobot Help?'];
-      if (skip.some(s => h.next.includes(s))) continue;
+      // Skip structural sections
+      const skip = ['Conclusion', 'Frequently Asked Questions', 'FAQ', 'How Can SalesRobot Help?'];
+      if (skip.some(s => h.next.toLowerCase().includes(s.toLowerCase()))) continue;
+      // Skip if this heading already exists in the blog (avoid duplicates)
+      const headingExists = updatedHtml.toLowerCase().includes(h.next.toLowerCase());
+      if (headingExists) continue;
 
       // Write a focused new section for this H2
       const sectionPrompt = `${ctx(brief, toolName)}
