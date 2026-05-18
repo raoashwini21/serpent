@@ -1176,7 +1176,14 @@ export default function StudioPage() {
                     {postResults.map(post => (
                       <div
                         key={post.id}
-                        onClick={() => { setSelectedPost(post); setToolName(post.name.split(' ')[0]); }}
+                        onClick={() => {
+                          setSelectedPost(post);
+                          // Extract tool name — skip generic words like 'in-depth', 'best', 'top', 'review'
+                          const skip = new Set(['in-depth', 'in', 'best', 'top', 'the', 'a', 'an', 'review', 'vs', 'alternative', 'alternatives', 'how', 'why', 'what', 'guide']);
+                          const words = post.name.replace(/[^a-zA-Z0-9. ]/g, '').split(' ');
+                          const toolWord = words.find(w => w.length > 2 && !skip.has(w.toLowerCase())) ?? words[0];
+                          setToolName(toolWord);
+                        }}
                         className={`px-3 py-2.5 cursor-pointer border-b border-gray-100 last:border-0 hover:bg-gray-50 ${selectedPost?.id === post.id ? 'bg-blue-50' : ''}`}
                       >
                         <div className="text-sm font-medium text-gray-800">{post.name}</div>
