@@ -116,19 +116,27 @@ function SectionCard({
       </div>
 
       {section.flagReason && (section.status === 'flagged' || section.status === 'pending') && (
-        <div className={`px-3 py-1.5 text-xs border-t ${section.status === 'flagged' ? 'bg-amber-50 text-amber-700 border-amber-100' : 'bg-gray-50 text-gray-500 border-gray-100'}`}>
-          {section.flagReason}
+        <div className={`px-3 py-2 text-xs border-t ${section.status === 'flagged' ? 'bg-amber-50 text-amber-700 border-amber-100' : 'bg-gray-50 text-gray-500 border-gray-100'}`}>
+          {section.id === 'full-update'
+            ? section.flagReason.split('
+').map((line, i) => (
+                <div key={i} className={`${line === '' ? 'mt-1' : 'mb-0.5'} ${line.startsWith('Review') ? 'text-gray-500 italic mt-2' : ''}`}>
+                  {line}
+                </div>
+              ))
+            : section.flagReason
+          }
         </div>
       )}
 
       {section.id === 'full-update' && section.html && section.status !== 'writing' && section.status !== 'done' && (
         <div className="border-t border-gray-100">
           <div className="px-3 py-1.5 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
-            <span className="text-xs text-gray-400">Existing blog content (preserved)</span>
-            <span className="text-xs text-gray-400">{section.html.length} chars</span>
+            <span className="text-xs text-gray-400">Current blog — scroll to preview</span>
+            <span className="text-xs text-gray-400">{Math.round(section.html.replace(/<[^>]+>/g,' ').trim().split(/\s+/).length / 200)} min read</span>
           </div>
           <div
-            className="px-3 py-2 prose prose-sm max-w-none text-xs max-h-64 overflow-y-auto"
+            className="px-3 py-2 prose prose-sm max-w-none text-xs max-h-48 overflow-y-auto"
             dangerouslySetInnerHTML={{ __html: section.html }}
           />
         </div>
@@ -841,17 +849,43 @@ export default function StudioPage() {
         // Show full body with images intact, apply surgical fixes to the whole thing
         const hasChanges = pricingChanged || featuresChanged || hasNewH2s || hasRedditSignals;
 
+        // Build human-readable change summary for writers
+        const changeSummary: string[] = [];
+        if (pricingChanged) {
+          const details = (researchData.pricing ?? []).filter(f => f.type !== 'signal').map(f => f.text).slice(0, 2);
+          changeSummary.push('💰 Pricing: ' + (details.join('; ') || 'updated'));
+        }
+        if (featuresChanged) {
+          const details = (researchData.features ?? []).filter(f => f.type !== 'signal').map(f => f.text).slice(0, 2);
+          changeSummary.push('🔧 Features: ' + (details.join('; ') || 'changed'));
+        }
+        if (hasNewH2s) {
+          const newH2s = json.brief.h2Changes
+            .filter((h: {isNew: boolean; next: string}) => h.isNew)
+            .map((h: {next: string}) => h.next)
+            .slice(0, 3);
+          changeSummary.push('📌 New sections to add: ' + newH2s.join(', '));
+        }
+        const updatedH2s = json.brief.h2Changes
+          .filter((h: {isNew: boolean; old: string | null; next: string}) => !h.isNew && h.old && h.old !== h.next)
+          .map((h: {old: string; next: string}) => `"${h.old}" → "${h.next}"`)
+          .slice(0, 3);
+        if (updatedH2s.length) {
+          changeSummary.push('✏️ Heading updates: ' + updatedH2s.join(', '));
+        }
+        if (hasRedditSignals && !pricingChanged && !featuresChanged) {
+          changeSummary.push('💬 New user signals found — review for relevance');
+        }
+
         setSections([{
           id: 'full-update',
           label: 'Full blog (surgical update)',
           status: hasChanges ? 'flagged' : 'skipped',
           flagReason: hasChanges
-            ? [
-                pricingChanged ? 'Pricing updated' : '',
-                featuresChanged ? 'Features changed' : '',
-                hasNewH2s ? 'New H2 opportunities' : '',
-                hasRedditSignals ? 'New user signals' : '',
-              ].filter(Boolean).join(', ')
+            ? changeSummary.join('
+') + '
+
+Review the full blog after patching and edit if needed.'
             : 'No changes detected — blog is up to date',
           html: getFullBodyForUpdate(selectedPost.bodyHtml),
         }]);
