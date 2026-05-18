@@ -130,7 +130,7 @@ function SectionCard({
                       const parts = line.split('  →  ');
                       const heading = parts[0] ?? line;
                       const status = parts[1] ?? '';
-                      const color = status === 'updated' ? 'text-amber-600' : status === 'new section' ? 'text-blue-600' : 'text-gray-400';
+                      const color = status === 'updated' ? 'text-amber-600' : status === 'will add' ? 'text-blue-600' : status === 'suggested' ? 'text-purple-500' : 'text-gray-400';
                       return (
                         <div key={i} className="flex items-center justify-between py-0.5 border-b border-amber-100 last:border-0">
                           <span className="text-xs text-gray-700 truncate mr-2">{heading}</span>
@@ -868,9 +868,15 @@ export default function StudioPage() {
         const hasChanges = pricingChanged || featuresChanged || hasNewH2s || hasRedditSignals;
 
         // Build simple H2 list with change status
+        // Only mark as "updated" if the old H2 text actually exists in the blog
+        const blogTextLower = (selectedPost?.bodyHtml ?? '').replace(/<[^>]+>/g, ' ').toLowerCase();
         const h2Lines = json.brief.h2Changes.map((h: {isNew: boolean; old: string | null; next: string}) => {
           const label = h.old ?? h.next;
-          const status = h.isNew ? 'new section' : (h.old !== h.next ? 'updated' : 'no change');
+          const existsInBlog = h.old ? blogTextLower.includes(h.old.toLowerCase()) : false;
+          const status = h.isNew ? 'will add'
+            : (h.old !== h.next && existsInBlog) ? 'updated'
+            : (h.old !== h.next && !existsInBlog) ? 'suggested'
+            : 'no change';
           return `${label}  →  ${status}`;
         }).join('\n');
 
