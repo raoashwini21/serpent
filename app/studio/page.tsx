@@ -881,10 +881,7 @@ export default function StudioPage() {
           label: 'Full blog (surgical update)',
           status: hasChanges ? 'flagged' : 'skipped',
           flagReason: hasChanges
-            ? changeSummary.join('
-') + '
-
-Review the full blog after patching and edit if needed.'
+            ? changeSummary.join('\n') + '\n\nReview the full blog after patching and edit if needed.'
             : 'No changes detected — blog is up to date',
           html: getFullBodyForUpdate(selectedPost.bodyHtml),
         }]);
