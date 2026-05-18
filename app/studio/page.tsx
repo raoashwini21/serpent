@@ -118,11 +118,30 @@ function SectionCard({
       {section.flagReason && (section.status === 'flagged' || section.status === 'pending') && (
         <div className={`px-3 py-2 text-xs border-t ${section.status === 'flagged' ? 'bg-amber-50 text-amber-700 border-amber-100' : 'bg-gray-50 text-gray-500 border-gray-100'}`}>
           {section.id === 'full-update'
-            ? section.flagReason.split('\n').map((line, i) => (
-                <div key={i} className={`${line === '' ? 'mt-1' : 'mb-0.5'} ${line.startsWith('Review') ? 'text-gray-500 italic mt-2' : ''}`}>
-                  {line}
-                </div>
-              ))
+            ? (() => {
+                const lines = section.flagReason.split('\n');
+                const emptyIdx = lines.findIndex(l => l === '');
+                const h2Lines = emptyIdx === -1 ? lines : lines.slice(0, emptyIdx);
+                const footer = emptyIdx === -1 ? '' : lines.slice(emptyIdx + 1).join(' ');
+                return (
+                  <div>
+                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">H2 changes</div>
+                    {h2Lines.map((line, i) => {
+                      const parts = line.split('  →  ');
+                      const heading = parts[0] ?? line;
+                      const status = parts[1] ?? '';
+                      const color = status === 'updated' ? 'text-amber-600' : status === 'new section' ? 'text-blue-600' : 'text-gray-400';
+                      return (
+                        <div key={i} className="flex items-center justify-between py-0.5 border-b border-amber-100 last:border-0">
+                          <span className="text-xs text-gray-700 truncate mr-2">{heading}</span>
+                          <span className={`text-xs flex-shrink-0 ${color}`}>{status}</span>
+                        </div>
+                      );
+                    })}
+                    {footer && <div className="text-xs text-gray-400 mt-2">{footer}</div>}
+                  </div>
+                );
+              })()
             : section.flagReason
           }
         </div>
@@ -848,41 +867,23 @@ export default function StudioPage() {
         // Show full body with images intact, apply surgical fixes to the whole thing
         const hasChanges = pricingChanged || featuresChanged || hasNewH2s || hasRedditSignals;
 
-        // Build human-readable change summary for writers
-        const changeSummary: string[] = [];
-        if (pricingChanged) {
-          const details = (researchData.pricing ?? []).filter(f => f.type !== 'signal').map(f => f.text).slice(0, 2);
-          changeSummary.push('💰 Pricing: ' + (details.join('; ') || 'updated'));
-        }
-        if (featuresChanged) {
-          const details = (researchData.features ?? []).filter(f => f.type !== 'signal').map(f => f.text).slice(0, 2);
-          changeSummary.push('🔧 Features: ' + (details.join('; ') || 'changed'));
-        }
-        if (hasNewH2s) {
-          const newH2s = json.brief.h2Changes
-            .filter((h: {isNew: boolean; next: string}) => h.isNew)
-            .map((h: {next: string}) => h.next)
-            .slice(0, 3);
-          changeSummary.push('📌 New sections to add: ' + newH2s.join(', '));
-        }
-        const updatedH2s = json.brief.h2Changes
-          .filter((h: {isNew: boolean; old: string | null; next: string}) => !h.isNew && h.old && h.old !== h.next)
-          .map((h: {old: string; next: string}) => `"${h.old}" → "${h.next}"`)
-          .slice(0, 3);
-        if (updatedH2s.length) {
-          changeSummary.push('✏️ Heading updates: ' + updatedH2s.join(', '));
-        }
-        if (hasRedditSignals && !pricingChanged && !featuresChanged) {
-          changeSummary.push('💬 New user signals found — review for relevance');
-        }
+        // Build simple H2 list with change status
+        const h2Lines = json.brief.h2Changes.map((h: {isNew: boolean; old: string | null; next: string}) => {
+          const label = h.old ?? h.next;
+          const status = h.isNew ? 'new section' : (h.old !== h.next ? 'updated' : 'no change');
+          return `${label}  →  ${status}`;
+        }).join('\n');
+
+        const footerNotes: string[] = [];
+        if (pricingChanged) footerNotes.push('Pricing changed');
+        if (featuresChanged) footerNotes.push('Features changed');
+        if (hasRedditSignals) footerNotes.push('New user signals found');
 
         setSections([{
           id: 'full-update',
           label: 'Full blog (surgical update)',
           status: hasChanges ? 'flagged' : 'skipped',
-          flagReason: hasChanges
-            ? changeSummary.join('\n') + '\n\nReview the full blog after patching and edit if needed.'
-            : 'No changes detected — blog is up to date',
+          flagReason: h2Lines + (footerNotes.length ? '\n\n' + footerNotes.join(' · ') : ''),
           html: getFullBodyForUpdate(selectedPost.bodyHtml),
         }]);
       } else {
