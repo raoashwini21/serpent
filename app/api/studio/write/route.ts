@@ -385,6 +385,10 @@ Maximum 8 pairs. Return [] if nothing needs changing. Valid JSON only.`;
     const pairs = extractJSONArray(raw);
     let updatedHtml = pairs.length > 0 ? applyFindReplace(htmlAfterH2s, pairs) : htmlAfterH2s;
 
+    // Track what actually changed for highlighting in review
+    const changedH2s = appliedH2s;
+    const contentChanged = pairs.length > 0;
+
     // Always fix year references in code — reliable, no Claude needed
     updatedHtml = updatedHtml.replace(/in 2024/g, 'in 2026');
     updatedHtml = updatedHtml.replace(/in 2025/g, 'in 2026');
@@ -446,6 +450,24 @@ Clean HTML only.`;
           }
         }
       }
+    }
+
+    // Wrap changed H2s with highlight marker for review screen
+    for (const oldH2 of changedH2s) {
+      const h2 = h2Changes.find(h => h.old === oldH2);
+      if (h2) {
+        updatedHtml = updatedHtml.replace(
+          `<h2>${h2.next}</h2>`,
+          `<h2 data-serpent-changed="true">${h2.next}</h2>`
+        );
+      }
+    }
+    // Mark new sections
+    for (const h of newH2s) {
+      updatedHtml = updatedHtml.replace(
+        `<h2>${h.next}</h2>`,
+        `<h2 data-serpent-added="true">${h.next}</h2>`
+      );
     }
 
     const encoder = new TextEncoder();
