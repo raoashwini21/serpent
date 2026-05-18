@@ -320,6 +320,30 @@ export async function POST(req: NextRequest) {
 
   // UPDATE MODE — find/replace, non-streaming
   if (sectionId === 'full-update' && existingSectionHtml) {
+
+    // Step 1 — Apply H2 changes in code, no Claude needed
+    // Strip tags for matching since Webflow wraps H2 content in <strong> etc
+    const h2Changes: { isNew: boolean; old: string | null; next: string }[] = brief.h2Changes ?? [];
+    let htmlAfterH2s = existingSectionHtml;
+    const appliedH2s: string[] = [];
+    for (const h of h2Changes) {
+      if (!h.isNew && h.old && h.old.trim() !== h.next.trim()) {
+        // Try exact match first
+        if (htmlAfterH2s.includes(h.old)) {
+          htmlAfterH2s = htmlAfterH2s.split(h.old).join(h.next);
+          appliedH2s.push(h.old);
+        } else {
+          // Try matching inside h2 tags regardless of inner formatting
+          const escaped = h.old.replace(/[.*+?^${}()|[\]\]/g, '\$&');
+          const tagRegex = new RegExp(`(<h[23][^>]*>)[^<]*(?:<[^>]+>[^<]*</[^>]+>[^<]*)*${escaped}[^<]*(?:<[^>]+>[^<]*</[^>]+>[^<]*)*(<\/h[23]>)`, 'gi');
+          const before = htmlAfterH2s;
+          htmlAfterH2s = htmlAfterH2s.replace(tagRegex, `$1${h.next}$2`);
+          if (htmlAfterH2s !== before) appliedH2s.push(h.old);
+        }
+      }
+    }
+
+    // Step 2 — Claude fact-checks pricing/features/years only
     const updatePrompt = `You are a fact-checker reviewing a blog post for outdated information.
 
 CONFIRMED CURRENT FACTS:
@@ -329,17 +353,11 @@ CONFIRMED CURRENT FACTS:
 ${_note ? `Editor note: ${_note}` : ''}
 
 Find outdated text and return ONLY a JSON array of find/replace pairs.
-Focus on: wrong pricing numbers, wrong year (2024/2025 → 2026), removed features.
+Focus on: wrong pricing numbers, wrong year (2024/2025 to 2026), removed features.
+Do NOT touch H2 headings.
 
-Return ONLY:
-[{ "find": "exact text from blog", "replace": "corrected text" }]
-
-Rules:
-- "find" must be exact substring from the blog
-- Maximum 8 pairs
-- Only change facts that are clearly wrong
-- If nothing needs changing return []
-- Valid JSON only, no explanation`;
+Return ONLY: [{ "find": "exact text", "replace": "corrected text" }]
+Maximum 8 pairs. Return [] if nothing needs changing. Valid JSON only.`;
 
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -358,7 +376,62 @@ Rules:
     const data = await res.json();
     const raw = data.content.filter((b: { type: string }) => b.type === 'text').map((b: { text: string }) => b.text).join('');
     const pairs = extractJSONArray(raw);
-    const updatedHtml = pairs.length > 0 ? applyFindReplace(existingSectionHtml, pairs) : existingSectionHtml;
+    let updatedHtml = pairs.length > 0 ? applyFindReplace(htmlAfterH2s, pairs) : htmlAfterH2s;
+
+    // Step 3 — Write and insert new sections
+    const newH2s = (brief.h2Changes ?? []).filter(
+      (h: { isNew: boolean; next: string }) => h.isNew
+    );
+
+    for (const h of newH2s) {
+      // Skip structural sections that don't need new content
+      const skip = ['Conclusion', 'Frequently Asked Questions', 'How Can SalesRobot Help?'];
+      if (skip.some(s => h.next.includes(s))) continue;
+
+      // Write a focused new section for this H2
+      const sectionPrompt = `${ctx(brief, toolName)}
+
+Write a new section for this blog. 150-250 words.
+YOUR FIRST LINE MUST BE EXACTLY: <h2>${h.next}</h2>
+Write only this section. Make it relevant to the blog topic.
+Clean HTML only.`;
+
+      const sRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY!, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 600,
+          stream: false,
+          system: MASTER_SYSTEM_PROMPT,
+          messages: [{ role: 'user', content: sectionPrompt }],
+        }),
+      });
+
+      if (sRes.ok) {
+        const sData = await sRes.json();
+        const newSectionHtml = sData.content
+          .filter((b: { type: string }) => b.type === 'text')
+          .map((b: { text: string }) => b.text)
+          .join('');
+
+        if (newSectionHtml.trim()) {
+          // Insert before conclusion or FAQ — find last h2 that looks like conclusion/faq
+          const insertBefore = /<h2[^>]*>\s*(?:Conclusion|Frequently Asked Questions|FAQ)\s*<\/h2>/i;
+          if (insertBefore.test(updatedHtml)) {
+            updatedHtml = updatedHtml.replace(insertBefore, (match) => `
+${newSectionHtml}
+
+${match}`);
+          } else {
+            // Append before closing if no conclusion found
+            updatedHtml = updatedHtml + `
+
+${newSectionHtml}`;
+          }
+        }
+      }
+    }
 
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
