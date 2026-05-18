@@ -118,8 +118,7 @@ function SectionCard({
       {section.flagReason && (section.status === 'flagged' || section.status === 'pending') && (
         <div className={`px-3 py-2 text-xs border-t ${section.status === 'flagged' ? 'bg-amber-50 text-amber-700 border-amber-100' : 'bg-gray-50 text-gray-500 border-gray-100'}`}>
           {section.id === 'full-update'
-            ? section.flagReason.split('
-').map((line, i) => (
+            ? section.flagReason.split('\n').map((line, i) => (
                 <div key={i} className={`${line === '' ? 'mt-1' : 'mb-0.5'} ${line.startsWith('Review') ? 'text-gray-500 italic mt-2' : ''}`}>
                   {line}
                 </div>
