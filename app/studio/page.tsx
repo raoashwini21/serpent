@@ -15,9 +15,9 @@ import { BLOG_TYPES } from '@/prompts/blog-types';
 const BLOG_SECTIONS: Record<string, string[]> = {
   'tool-review': ['tldr', 'intro', 'what-is', 'features', 'pricing', 'pros-cons', 'salesrobot', 'faq', 'conclusion'],
   'tool-comparison': ['tldr', 'intro', 'overview', 'comparison', 'salesrobot', 'faq', 'conclusion'],
-  'alternatives': ['tldr', 'intro', 'why-switch', 'alternatives-list', 'salesrobot', 'faq', 'conclusion'],
+  'alternatives': ['tldr', 'intro', 'why-switch', 'alternatives-list', 'faq', 'conclusion'],
   'how-to-guide': ['tldr', 'intro', 'what-is', 'why-it-matters', 'how-to-steps', 'salesrobot', 'faq', 'conclusion'],
-  'listicle': ['tldr', 'intro', 'what-to-look-for', 'tools-list', 'salesrobot', 'faq', 'conclusion'],
+  'listicle': ['tldr', 'intro', 'what-to-look-for', 'tools-list', 'faq', 'conclusion'],
   'strategy-guide': ['tldr', 'intro', 'why-it-matters', 'tips-list', 'salesrobot', 'faq', 'conclusion'],
 };
 
