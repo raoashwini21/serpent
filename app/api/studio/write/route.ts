@@ -334,11 +334,18 @@ export async function POST(req: NextRequest) {
           appliedH2s.push(h.old);
         } else {
           // Try matching inside h2 tags regardless of inner formatting
-          const escaped = h.old.replace(/[.*+?^${}()|[\]\]/g, '\$&');
-          const tagRegex = new RegExp(`(<h[23][^>]*>)[^<]*(?:<[^>]+>[^<]*</[^>]+>[^<]*)*${escaped}[^<]*(?:<[^>]+>[^<]*</[^>]+>[^<]*)*(<\/h[23]>)`, 'gi');
-          const before = htmlAfterH2s;
-          htmlAfterH2s = htmlAfterH2s.replace(tagRegex, `$1${h.next}$2`);
-          if (htmlAfterH2s !== before) appliedH2s.push(h.old);
+          // Strip inner tags and compare
+          const stripTags = (s: string) => s.replace(/<[^>]+>/g, '').trim();
+          const h2Regex = /<h[23][^>]*>([\s\S]*?)<\/h[23]>/gi;
+          let matched = false;
+          htmlAfterH2s = htmlAfterH2s.replace(h2Regex, (full: string, inner: string) => {
+            if (!matched && stripTags(inner) === h.old) {
+              matched = true;
+              return full.replace(inner, h.next);
+            }
+            return full;
+          });
+          if (matched) appliedH2s.push(h.old);
         }
       }
     }
