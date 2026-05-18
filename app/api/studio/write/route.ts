@@ -454,8 +454,7 @@ Rules:
           .map((b: { text: string }) => b.text)
           .join('');
         if (newSrSection.trim()) {
-          updatedHtml = updatedHtml.slice(0, srH2Index) + newSrSection + '
-' + updatedHtml.slice(srSectionEnd);
+          updatedHtml = updatedHtml.slice(0, srH2Index) + newSrSection + '\n' + updatedHtml.slice(srSectionEnd);
         }
       }
     }
