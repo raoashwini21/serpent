@@ -423,7 +423,9 @@ Rules:
 
     // Step 2b — Always rewrite SalesRobot section with current features
     // Find and replace the SalesRobot section in the blog
-    const srH2Regex = /<h[23][^>]*>([\s\S]*?salesrobot[\s\S]*?)<\/h[23]>/i;
+    // Only match H2s that are specifically SalesRobot section headings
+    // not H2s that just mention SalesRobot in passing
+    const srH2Regex = /<h2[^>]*>([\s\S]*?(?:salesrobot is the|why.*salesrobot|salesrobot.*alternative|salesrobot.*best|best.*salesrobot)[\s\S]*?)<\/h2>/i;
     const srH2Match = updatedHtml.match(srH2Regex);
 
     if (srH2Match) {
