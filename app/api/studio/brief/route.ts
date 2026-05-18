@@ -82,8 +82,9 @@ Base everything strictly on the research data provided. Valid JSON only.`, syste
   const existingH2Block = isUpdate ? `Existing H2s:\n${existingH2s.map((h,i) => `${i+1}. ${h}`).join('\n')}` : 'New blog.';
 
   const structureRaw = await claudeCall(`
-Generate the structure brief for a "${blogType}" blog about "${toolName}".
-Working title: "${blogTitle}"
+Generate the structure brief for a "${blogType}" blog.
+THE TOOL NAME IS: "${toolName}" — use ONLY this name in all H2s and headings. Never substitute any other word.
+Working title (for reference only, do not extract tool name from this): "${blogTitle}"
 
 CONFIRMED FACTS (use these exactly):
 Pricing: ${facts.confirmedPricing}
@@ -105,12 +106,14 @@ Review/Comparison: What Is, What Does, How Much, Is It Worth It, [PAA questions]
 Alternatives/Listicle: Why Switch, Best Alternatives (SalesRobot #1 in list), [PAA questions], FAQ, Conclusion`}
 
 ABSOLUTE H2 RULES:
+- ALWAYS use "${toolName}" in H2s — never "In-depth", never words from the blog title
 - Never put year in H2. Every H2 starts with What/How/Is/Does/Can/Why/Which/Do/Should. Under 60 chars.
 - Copy PAA questions exactly as-is.
+- Example good H2: "What Does ${toolName} Actually Do?" not "What Does In-depth Do?"
 
 Return ONLY:
 {
-  "h1": "${toolName} Review 2026: [short hook under 40 chars] — MUST start with ${toolName}",
+  "h1": "${toolName} Review 2026: [short hook] — MUST start with the word ${toolName}",
   "metaTitle": "under 60 chars with 2026",
   "metaDescription": "140-160 chars with primary keyword",
   "h2Changes": [{"old": "existing or null", "next": "recommended H2", "reason": "why", "isNew": false}],
