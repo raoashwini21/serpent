@@ -439,15 +439,10 @@ Clean HTML only.`;
           // Insert before conclusion or FAQ — find last h2 that looks like conclusion/faq
           const insertBefore = /<h2[^>]*>\s*(?:Conclusion|Frequently Asked Questions|FAQ)\s*<\/h2>/i;
           if (insertBefore.test(updatedHtml)) {
-            updatedHtml = updatedHtml.replace(insertBefore, (match) => `
-${newSectionHtml}
-
-${match}`);
+            updatedHtml = updatedHtml.replace(insertBefore, (match: string) => '\n' + newSectionHtml + '\n\n' + match);
           } else {
             // Append before closing if no conclusion found
-            updatedHtml = updatedHtml + `
-
-${newSectionHtml}`;
+            updatedHtml = updatedHtml + '\n\n' + newSectionHtml;
           }
         }
       }
