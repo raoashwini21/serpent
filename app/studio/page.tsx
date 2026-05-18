@@ -576,10 +576,38 @@ function FullBlogEditor({
         />
       ) : (
         <div
-          className="prose prose-gray max-w-none text-sm leading-relaxed"
+          className="prose prose-gray max-w-none text-sm leading-relaxed serpent-review"
           dangerouslySetInnerHTML={{ __html: section.html }}
         />
       )}
+      <style>{`
+        .serpent-review h2[data-serpent-changed="true"] {
+          background: #f0fdf4;
+          border-left: 3px solid #22c55e;
+          padding-left: 10px;
+          margin-left: -13px;
+        }
+        .serpent-review h2[data-serpent-changed="true"]::after {
+          content: " ✓ updated";
+          font-size: 11px;
+          color: #16a34a;
+          font-weight: normal;
+          margin-left: 8px;
+        }
+        .serpent-review h2[data-serpent-added="true"] {
+          background: #eff6ff;
+          border-left: 3px solid #3b82f6;
+          padding-left: 10px;
+          margin-left: -13px;
+        }
+        .serpent-review h2[data-serpent-added="true"]::after {
+          content: " + new section";
+          font-size: 11px;
+          color: #2563eb;
+          font-weight: normal;
+          margin-left: 8px;
+        }
+      `}</style>
 
       <div className="flex gap-2 mt-6 pt-4 border-t border-gray-100">
         {!isEditing && (
