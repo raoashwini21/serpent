@@ -79,22 +79,40 @@ TASK:
    For UPDATE mode (existingH2s provided): show old vs new with reason.
    For NEW blog mode (no existingH2s): old=null, isNew=true for all.
 
-   REQUIRED H2s — use EXACTLY these formats, replacing [Tool] with the actual tool name:
-   a. "What Is [Tool] and Who Is It For?"
-   b. "What Does [Tool] Actually Do?" — OR use a PAA question about features if one exists
-   c. "How Much Does [Tool] Cost?" — never add year here
-   d. "Is [Tool] Worth It?" — OR use a PAA verdict question if one exists
-   e. "How Can SalesRobot Help?" — always this exact text
-   f. "Frequently Asked Questions" — always this exact text
-   g. "Conclusion" — always this exact text
+   FOR UPDATE MODE — existing H2 rules:
+   - Only update an H2 if it contains a wrong year, is a generic non-question format, or matches a PAA question exactly
+   - NEVER replace a pricing H2 ("How much does X cost?", "X Pricing") with an unrelated PAA question
+   - NEVER remove existing H2s — only rewrite or add
+   - Pricing, features, pros/cons H2s must stay on topic — only reformat to question style if needed
+   - PAA questions become ADDITIONAL new H2s, not replacements for existing sections
+   - "How Can SalesRobot Help?" only appears in review/comparison/how-to blogs
+     For ALTERNATIVES blogs: SalesRobot is listed as the #1 alternative inside the alternatives list — no separate SalesRobot H2
+     For LISTICLE blogs: SalesRobot is listed as the #1 tool in the tools list — no separate SalesRobot H2
 
-   ADDITIONAL H2s: if PAA questions are provided above, insert them before section e.
-   Copy PAA questions exactly as-is — do not rewrite them.
+   FOR NEW BLOG MODE — generate these H2s based on blog type:
+   Review/Comparison:
+   a. "What Is [Tool] and Who Is It For?"
+   b. "What Does [Tool] Actually Do?" — OR matching PAA question
+   c. "How Much Does [Tool] Cost?" — never add year
+   d. "Is [Tool] Worth It?" — OR matching PAA verdict question
+   e. [Any additional PAA questions as new H2s]
+   f. "How Can SalesRobot Help?"
+   g. "Frequently Asked Questions"
+   h. "Conclusion"
+
+   Alternatives/Listicle:
+   a. "Why Look for a [Tool] Alternative?" or "What to Look for in a [Category] Tool?"
+   b. "Best [Tool] Alternatives" or "Best [Category] Tools"
+      — SalesRobot is #1 in this list, no separate SalesRobot section needed
+   c. [PAA questions as additional H2s]
+   d. "Frequently Asked Questions"
+   e. "Conclusion"
 
    ABSOLUTE H2 RULES:
    - Never put a year in any H2
-   - Never write "[Tool] Features", "[Tool] Pricing", "[Tool] Review" as an H2 — always question format
+   - Never write "[Tool] Features 2026" or "[Tool] Pricing 2026" — always question format
    - Every H2 must start with: What, How, Is, Does, Can, Why, Which, Do, Should
+   - PAA questions copied exactly as-is
    - Under 60 chars each
 
 3. Set target keywords from GSC or SERP signals.
@@ -133,6 +151,11 @@ Return ONLY this JSON:
   "topPainPoints": ["pain point 1", "pain point 2", "pain point 3"],
   "faqQuestions": ["actual PAA or search question 1", "question 2", "question 3", "question 4", "question 5"]
 }
+
+For UPDATE mode h2Changes rules:
+- NEVER mark "Conclusion", "Frequently Asked Questions", "FAQ", "How Can SalesRobot Help?" as isNew:true — these always exist
+- Only mark isNew:true for genuinely new topic sections that add new content
+- If an existing H2 is similar to a required one, mark it as updated not new
 
 faqQuestions rules:
 - Use REAL questions from PAA data and SERP signals provided above
