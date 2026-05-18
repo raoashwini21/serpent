@@ -72,7 +72,10 @@ Base everything strictly on the research data provided. Valid JSON only.`, syste
   }
 
   // ── Call 2: Generate structure (H1, H2s, keywords, FAQ) ───────────────
-  const paaQuestions = (research.paaQuestions ?? []).filter(q => q.includes('?')).slice(0, 5).join('\n');
+  // Only use PAA questions that are actually about the tool, not generic phrases
+  const paaQuestions = (research.paaQuestions ?? [])
+    .filter(q => q.includes('?') && q.toLowerCase().includes(toolName.toLowerCase()))
+    .slice(0, 5).join('\n');
   const serpH2s = (research.serpH2s ?? []).filter(h => /^(what|how|is|does|can|why|which|do|should)/i.test(h.trim())).slice(0, 4).join('\n');
   const gscContext = hasGsc ? `GSC opportunities:\n${buildGscSummary(gscRows)}` : `PAA questions:\n${paaQuestions || 'none'}\nCompetitor H2s:\n${serpH2s || 'none'}`;
   const isUpdate = existingH2s.length > 0;
@@ -107,12 +110,14 @@ ABSOLUTE H2 RULES:
 
 Return ONLY:
 {
-  "h1": "${toolName} [type] 2026: [hook] — keyword first, under 70 chars",
+  "h1": "${toolName} Review 2026: [short hook under 40 chars] — MUST start with ${toolName}",
   "metaTitle": "under 60 chars with 2026",
   "metaDescription": "140-160 chars with primary keyword",
   "h2Changes": [{"old": "existing or null", "next": "recommended H2", "reason": "why", "isNew": false}],
   "targetKeywords": ["primary", "secondary 1", "secondary 2"],
-  "faqQuestions": ["real PAA question 1", "question 2", "question 3", "question 4"]
+  "faqQuestions": ["question about ${toolName} only", "question 2", "question 3", "question 4"]
+
+CRITICAL: faqQuestions must be about ${toolName} specifically. Never generate questions about generic phrases or words from the blog title.
 }
 Valid JSON only.`, system, 1200);
 
