@@ -704,22 +704,19 @@ function ReviewScreen({ sections, brief, mode, blogType, onEdit, onRegenerate, o
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-6 py-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2 leading-tight">{brief.h1}</h1>
-          <p className="text-xs text-gray-400 mb-8">
+          <p className="text-xs text-gray-400 mb-4">
             {mode === 'new'
               ? 'Click "Copy for Google Docs" to paste with full formatting intact.'
               : 'Edit any section inline. Add links with the 🔗 button. Push when ready.'}
           </p>
+          {mode === 'update' && (
+            <div className="mb-6 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
+              ℹ️ Images and links from the original blog are preserved in unchanged sections. You can see and edit them inline below.
+            </div>
+          )}
           {sections
             .filter(s => (s.status === 'done' || s.status === 'skipped') && s.html)
-            .map(s => s.id === 'full-update' ? (
-              // Update mode — render full blog as one editable document
-              <FullBlogEditor
-                key={s.id}
-                section={s}
-                onEdit={onEdit}
-                onRegenerate={onRegenerate}
-              />
-            ) : (
+            .map(s => (
               <ReviewSection
                 key={s.id}
                 section={s}
@@ -773,6 +770,7 @@ export default function StudioPage() {
   const [pushStatus, setPushStatus] = useState<'idle' | 'pushing' | 'done' | 'error'>('idle');
   const [pushResult, setPushResult] = useState<{ slug: string; itemId: string } | null>(null);
   const [error, setError] = useState('');
+  const [infoMsg, setInfoMsg] = useState('');
 
   // Update mode state
   const [postSearch, setPostSearch] = useState('');
@@ -884,42 +882,76 @@ export default function StudioPage() {
       const sectionIds = BLOG_SECTIONS[blogType] ?? BLOG_SECTIONS['tool-review'];
 
       if (mode === 'update' && selectedPost?.bodyHtml) {
-        // Extract existing section HTML from the fetched post
-        // Flag sections that research found changes for
         const pricingChanged = (researchData.pricing ?? []).some(f => f.type === 'changed' || f.type === 'removed' || f.type === 'added');
         const featuresChanged = (researchData.features ?? []).some(f => f.type === 'added' || f.type === 'removed');
         const hasNewH2s = json.brief.h2Changes.some((h: {isNew: boolean}) => h.isNew);
         const hasRedditSignals = (researchData.redditSignals ?? []).length > 0;
 
-        // For update mode: treat the whole blog as one unit
-        // Show full body with images intact, apply surgical fixes to the whole thing
-        const hasChanges = pricingChanged || featuresChanged || hasNewH2s || hasRedditSignals;
+        // Split existing blog into sections by H2 headings
+        const bodyHtml = selectedPost.bodyHtml;
+        const h2SplitRegex = /(?=<h2[^>]*>)/gi;
+        const rawChunks = bodyHtml.split(h2SplitRegex);
+        // First chunk is intro (before first H2)
+        const introChunk = rawChunks[0] ?? '';
+        const sectionChunks = rawChunks.slice(1);
 
-        // Build simple H2 list with change status
-        // Only mark as "updated" if the old H2 text actually exists in the blog
-        const blogTextLower = (selectedPost?.bodyHtml ?? '').replace(/<[^>]+>/g, ' ').toLowerCase();
-        const h2Lines = json.brief.h2Changes.map((h: {isNew: boolean; old: string | null; next: string}) => {
-          const label = h.old ?? h.next;
-          const existsInBlog = h.old ? blogTextLower.includes(h.old.toLowerCase()) : false;
-          const status = h.isNew ? 'will add'
-            : (h.old !== h.next && existsInBlog) ? 'updated'
-            : (h.old !== h.next && !existsInBlog) ? 'suggested'
-            : 'no change';
-          return `${label}  →  ${status}`;
-        }).join('\n');
+        // Map each chunk to a section id based on H2 content
+        const chunkMap: Record<string, string> = {};
+        chunkMap['intro'] = introChunk;
+        for (const chunk of sectionChunks) {
+          const h2Text = (chunk.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i)?.[1] ?? '').replace(/<[^>]+>/g, '').toLowerCase();
+          if (/what is|who is/.test(h2Text)) chunkMap['what-is'] = chunk;
+          else if (/feature|what does|capabilit/.test(h2Text)) chunkMap['features'] = chunk;
+          else if (/pric|cost|how much/.test(h2Text)) chunkMap['pricing'] = chunk;
+          else if (/worth|pros|cons|is it/.test(h2Text)) chunkMap['pros-cons'] = chunk;
+          else if (/salesrobot|alternative.*section|how can salesrobot/.test(h2Text)) chunkMap['salesrobot'] = chunk;
+          else if (/faq|frequently|question/.test(h2Text)) chunkMap['faq'] = chunk;
+          else if (/conclusion/.test(h2Text)) chunkMap['conclusion'] = chunk;
+          else if (/why switch|why look|alternative/.test(h2Text)) chunkMap['why-switch'] = chunk;
+          else if (/verdict|triumphs|final/.test(h2Text)) chunkMap['conclusion'] = chunkMap['conclusion'] ? chunkMap['conclusion'] + chunk : chunk;
+          else chunkMap[h2Text.slice(0, 20)] = chunk;
+        }
 
-        const footerNotes: string[] = [];
-        if (pricingChanged) footerNotes.push('Pricing changed');
-        if (featuresChanged) footerNotes.push('Features changed');
-        if (hasRedditSignals) footerNotes.push('New user signals found');
+        // Flag sections that need changes
+        const salesrobotSectionExists = !!chunkMap['salesrobot'];
 
-        setSections([{
-          id: 'full-update',
-          label: 'Full blog (surgical update)',
-          status: hasChanges ? 'flagged' : 'skipped',
-          flagReason: h2Lines + (footerNotes.length ? '\n\n' + footerNotes.join(' · ') : ''),
-          html: getFullBodyForUpdate(selectedPost.bodyHtml),
-        }]);
+        setSections(sectionIds.map(id => {
+          const existingHtml = chunkMap[id] ?? '';
+          const isFlagged =
+            (id === 'pricing' && pricingChanged) ||
+            (id === 'features' && featuresChanged) ||
+            (id === 'tldr' && (pricingChanged || featuresChanged)) ||
+            (id === 'salesrobot') || // always rewrite SalesRobot section
+            (id === 'conclusion' && pricingChanged) ||
+            (id === 'faq' && hasNewH2s);
+          const isNew = !existingHtml && id !== 'intro';
+
+          return {
+            id,
+            label: SECTION_LABELS[id] ?? id,
+            status: isNew ? 'pending' : isFlagged ? 'flagged' : 'skipped',
+            flagReason: isFlagged
+              ? id === 'salesrobot' ? 'Always updated with latest SalesRobot features'
+              : id === 'pricing' ? 'Pricing changes found'
+              : id === 'features' ? 'Feature changes found'
+              : id === 'tldr' ? 'Summary needs updating'
+              : id === 'faq' ? 'New H2 opportunities'
+              : 'Update needed'
+              : isNew ? 'New section — will be written'
+              : undefined,
+            html: existingHtml,
+          };
+        }));
+
+        // Add warning about images/links
+        const hasImages = bodyHtml.includes('<img');
+        const hasLinks = bodyHtml.includes('<a href');
+        if (hasImages || hasLinks) {
+          setInfoMsg(
+            `Images${hasLinks ? ' and links' : ''} from the original blog are preserved in unchanged sections. They will appear in the final review.`
+          );
+        }
+
       } else {
         // Match each section to its brief H2 suggestion for the label
         const h2Map: Record<string, string> = {};
@@ -975,14 +1007,20 @@ export default function StudioPage() {
     setWriting(true);
     const sectionIds = BLOG_SECTIONS[blogType] ?? BLOG_SECTIONS['tool-review'];
 
-    // In update mode, sections list is just [{id:'full-update', ...}]
+    // Update mode: rewrite flagged sections, skip unchanged ones
+    // New blog mode: write all sections fresh
     const sectionsToWrite = mode === 'update'
-      ? sections.filter(s => s.status === 'flagged').map(s => s.id)
+      ? sections.filter(s => s.status === 'flagged' || s.status === 'pending').map(s => s.id)
       : sectionIds;
 
     for (const sectionId of sectionsToWrite) {
       const currentSection = sections.find(s => s.id === sectionId);
       if (!currentSection) continue;
+      // In update mode, skipped sections keep existing HTML — mark as done immediately
+      if (mode === 'update' && currentSection.status === 'skipped' && currentSection.html) {
+        setSections(prev => prev.map(s => s.id === sectionId ? { ...s, status: 'done' } : s));
+        continue;
+      }
 
       setSections(prev => prev.map(s => s.id === sectionId ? { ...s, status: 'writing' } : s));
 
@@ -1307,8 +1345,9 @@ export default function StudioPage() {
         </span>
         <span className="flex-1" />
         {error && <span className="text-xs text-red-500 max-w-xs truncate">{error}</span>}
+        {infoMsg && !error && <span className="text-xs text-blue-500 max-w-xs truncate">ℹ️ {infoMsg}</span>}
         <button
-          onClick={() => { setStarted(false); setError(''); setBrief(null); setBriefApproved(false); setSections([]); setResearch(null); setP1Status('pending'); setP2Status('pending'); setP3Status('pending'); setP4Status('pending'); setSelectedPost(null); setPostResults([]); setPostSearch(''); }}
+          onClick={() => { setStarted(false); setError(''); setInfoMsg(''); setBrief(null); setBriefApproved(false); setSections([]); setResearch(null); setP1Status('pending'); setP2Status('pending'); setP3Status('pending'); setP4Status('pending'); setSelectedPost(null); setPostResults([]); setPostSearch(''); }}
           className="text-xs text-gray-400 hover:text-gray-600"
         >
           ← Back
