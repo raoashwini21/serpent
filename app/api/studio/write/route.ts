@@ -69,7 +69,7 @@ function promptFeatures(brief: Brief, toolName: string, note?: string): string {
     : `No feature list from research. Write about core functionality based on keyword: ${brief.targetKeywords?.[0] ?? toolName}.`;
   return `${ctx(brief, toolName, note)}
 
-Write the features section. 250-300 words. THIS SECTION IS REQUIRED.
+Write the features section. 250-300 words.
 H2: "${h2}"
 ${featureList}
 Format each feature as:
@@ -430,8 +430,8 @@ Rules:
       { find: 'just $99 a month', replace: 'from $59/month' },
       { find: 'only $99 per month', replace: 'from $59/month' },
       { find: '$99 per month, it presents', replace: '$59-$99/month, it presents' },
-      { find: 'Budget-Friendly Brilliance: Salesrobot's got the moves and won't cost you an arm and a leg. At just $99 a month, you're getting the full robot dance party.', replace: 'Budget-Friendly Brilliance: SalesRobot plans start at $59/month with full transparency. No enterprise contracts or hidden fees.' },
-      { find: 'Affordable Pricing: One of the standout advantages of Salesrobot is its pricing model. At just $99 per month, it presents a significantly more affordable option than Ongage, which starts at $399 monthly.', replace: 'Affordable Pricing: SalesRobot offers transparent pricing from $59/month, significantly more affordable than most enterprise tools.' },
+      { find: "Budget-Friendly Brilliance: Salesrobot's got the moves and won't cost you an arm and a leg. At just $99 a month, you're getting the full robot dance party.", replace: "Budget-Friendly Brilliance: SalesRobot plans start at $59/month with full transparency. No enterprise contracts or hidden fees." },
+      { find: "Affordable Pricing: One of the standout advantages of Salesrobot is its pricing model. At just $99 per month, it presents a significantly more affordable option than Ongage, which starts at $399 monthly.", replace: "Affordable Pricing: SalesRobot offers transparent pricing from $59/month, significantly more affordable than most enterprise tools." },
     ];
     updatedHtml = applyFindReplace(updatedHtml, srPricingPatterns);
 
