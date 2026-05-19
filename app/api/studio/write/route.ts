@@ -421,59 +421,35 @@ Rules:
     updatedHtml = updatedHtml.replace(/Updated 2024/g, 'Updated 2026');
     updatedHtml = updatedHtml.replace(/Updated 2025/g, 'Updated 2026');
 
-    // Step 2b — Always rewrite SalesRobot section with current features
-    // Find and replace the SalesRobot section in the blog
-    // Only match H2s that are specifically SalesRobot section headings
-    // not H2s that just mention SalesRobot in passing
-    const srH2Regex = /<h2[^>]*>([\s\S]*?(?:salesrobot is the|why.*salesrobot|salesrobot.*alternative|salesrobot.*best|best.*salesrobot)[\s\S]*?)<\/h2>/i;
-    const srH2Match = updatedHtml.match(srH2Regex);
+    // Step 2b — Update SalesRobot content in place via find/replace
+    // Fix outdated pricing first
+    const srPricingPatterns = [
+      { find: 'At just $99 per month', replace: 'with plans from $59/month' },
+      { find: 'At just $99 a month', replace: 'with plans from $59/month' },
+      { find: 'just $99 per month', replace: 'from $59/month' },
+      { find: 'just $99 a month', replace: 'from $59/month' },
+      { find: 'only $99 per month', replace: 'from $59/month' },
+      { find: '$99 per month, it presents', replace: '$59-$99/month, it presents' },
+      { find: 'Budget-Friendly Brilliance: Salesrobot's got the moves and won't cost you an arm and a leg. At just $99 a month, you're getting the full robot dance party.', replace: 'Budget-Friendly Brilliance: SalesRobot plans start at $59/month with full transparency. No enterprise contracts or hidden fees.' },
+      { find: 'Affordable Pricing: One of the standout advantages of Salesrobot is its pricing model. At just $99 per month, it presents a significantly more affordable option than Ongage, which starts at $399 monthly.', replace: 'Affordable Pricing: SalesRobot offers transparent pricing from $59/month, significantly more affordable than most enterprise tools.' },
+    ];
+    updatedHtml = applyFindReplace(updatedHtml, srPricingPatterns);
 
-    if (srH2Match) {
-      // Rewrite only the SalesRobot section — find its exact boundaries
-      const srH2Index = updatedHtml.indexOf(srH2Match[0]);
-      const afterSrH2 = updatedHtml.slice(srH2Index + srH2Match[0].length);
-
-      // Find next H2 that is NOT part of the SalesRobot section
-      const nextH2Matches = [...afterSrH2.matchAll(/<h2[^>]*>/gi)];
-      let srSectionEnd = srH2Index + srH2Match[0].length;
-      for (const m of nextH2Matches) {
-        const closeIdx = afterSrH2.indexOf('</h2>', m.index as number);
-        const headingText = afterSrH2.slice(m.index as number, closeIdx + 5).replace(/<[^>]+>/g, '').toLowerCase();
-        // Stop at first H2 that doesnt include 'salesrobot' — thats the next real section
-        if (!headingText.includes('salesrobot')) {
-          srSectionEnd = srH2Index + srH2Match[0].length + (m.index as number);
-          break;
-        }
-      }
-      // If no next H2 found, limit replacement to 2500 chars to avoid eating rest of blog
-      if (srSectionEnd === srH2Index + srH2Match[0].length) {
-        srSectionEnd = srH2Index + srH2Match[0].length + Math.min(afterSrH2.length, 2500);
-      }
-
-      const before = updatedHtml.slice(0, srH2Index);
-      const after = updatedHtml.slice(srSectionEnd);
-
-      const srRes = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY!, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 800,
-          stream: false,
-          system: MASTER_SYSTEM_PROMPT,
-          messages: [{ role: 'user', content: promptSalesRobot(brief, toolName) }],
-        }),
-      });
-      if (srRes.ok) {
-        const srData = await srRes.json();
-        const newSrSection = srData.content
-          .filter((b: { type: string }) => b.type === 'text')
-          .map((b: { text: string }) => b.text)
-          .join('');
-        if (newSrSection.trim()) {
-          updatedHtml = before + newSrSection + '\n' + after;
-        }
-      }
+    // Add AI Appointment Setter mention if not present
+    if (!updatedHtml.toLowerCase().includes('ai appointment setter') && updatedHtml.toLowerCase().includes('salesrobot')) {
+      updatedHtml = updatedHtml.replace(
+        /(<[^>]+>[^<]*SalesRobot[^<]*(?:24\/7|support|customer)[^<]*<\/[^>]+>)/i,
+        '$1
+<p><strong>AI Appointment Setter:</strong> SalesRobot's AI automatically responds to LinkedIn conversations and books qualified meetings — no manual follow-up needed.</p>'
+      );
+    }
+    // Add AI Variables mention if not present
+    if (!updatedHtml.toLowerCase().includes('ai variables') && !updatedHtml.toLowerCase().includes('ai variable') && updatedHtml.toLowerCase().includes('salesrobot')) {
+      updatedHtml = updatedHtml.replace(
+        /(<[^>]+>[^<]*SalesRobot[^<]*(?:personali|hyper)[^<]*<\/[^>]+>)/i,
+        '$1
+<p><strong>AI Variables:</strong> Automatically pulls prospect data from LinkedIn profiles to write personalized messages at scale — job changes, company news, shared connections and more.</p>'
+      );
     }
 
     // Step 3 — Write and insert new sections
