@@ -439,16 +439,14 @@ Rules:
     if (!updatedHtml.toLowerCase().includes('ai appointment setter') && updatedHtml.toLowerCase().includes('salesrobot')) {
       updatedHtml = updatedHtml.replace(
         /(<[^>]+>[^<]*SalesRobot[^<]*(?:24\/7|support|customer)[^<]*<\/[^>]+>)/i,
-        '$1
-<p><strong>AI Appointment Setter:</strong> SalesRobot's AI automatically responds to LinkedIn conversations and books qualified meetings — no manual follow-up needed.</p>'
+        "$1\n<p><strong>AI Appointment Setter:</strong> SalesRobot's AI automatically responds to LinkedIn conversations and books qualified meetings — no manual follow-up needed.</p>"
       );
     }
     // Add AI Variables mention if not present
     if (!updatedHtml.toLowerCase().includes('ai variables') && !updatedHtml.toLowerCase().includes('ai variable') && updatedHtml.toLowerCase().includes('salesrobot')) {
       updatedHtml = updatedHtml.replace(
         /(<[^>]+>[^<]*SalesRobot[^<]*(?:personali|hyper)[^<]*<\/[^>]+>)/i,
-        '$1
-<p><strong>AI Variables:</strong> Automatically pulls prospect data from LinkedIn profiles to write personalized messages at scale — job changes, company news, shared connections and more.</p>'
+        "$1\n<p><strong>AI Variables:</strong> Automatically pulls prospect data from LinkedIn profiles to write personalized messages at scale — job changes, company news, shared connections and more.</p>"
       );
     }
 
