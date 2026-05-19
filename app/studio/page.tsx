@@ -891,37 +891,64 @@ export default function StudioPage() {
         const bodyHtml = selectedPost.bodyHtml;
         const h2SplitRegex = /(?=<h2[^>]*>)/gi;
         const rawChunks = bodyHtml.split(h2SplitRegex);
-        // First chunk is intro (before first H2)
-        const introChunk = rawChunks[0] ?? '';
+        // First chunk is intro — strip any TL;DR block if it exists before first H2
+        let introChunk = rawChunks[0] ?? '';
         const sectionChunks = rawChunks.slice(1);
+        // If intro chunk contains a TL;DR heading, move it to sectionChunks
+        // and keep only the actual intro paragraphs
+        if (/<h2[^>]*>.*?tl;?dr.*?<\/h2>/i.test(introChunk)) {
+          const tldrMatch = introChunk.match(/(<h2[^>]*>.*?tl;?dr.*?<\/h2>[\s\S]*)/i);
+          if (tldrMatch) {
+            sectionChunks.unshift(tldrMatch[1]);
+            introChunk = introChunk.slice(0, tldrMatch.index);
+          }
+        }
 
         // Map each chunk to a section id based on H2 content
         const chunkMap: Record<string, string> = {};
         chunkMap['intro'] = introChunk;
         for (const chunk of sectionChunks) {
           const h2Text = (chunk.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i)?.[1] ?? '').replace(/<[^>]+>/g, '').toLowerCase();
-          if (/what is|who is/.test(h2Text)) chunkMap['what-is'] = chunk;
+          if (/tl;?dr|tldr/.test(h2Text)) chunkMap['tldr'] = chunk;
+          else if (/what is|who is/.test(h2Text)) chunkMap['what-is'] = chunk;
           else if (/feature|what does|capabilit/.test(h2Text)) chunkMap['features'] = chunk;
           else if (/pric|cost|how much/.test(h2Text)) chunkMap['pricing'] = chunk;
           else if (/worth|pros|cons|is it/.test(h2Text)) chunkMap['pros-cons'] = chunk;
-          else if (/salesrobot|alternative.*section|how can salesrobot/.test(h2Text)) chunkMap['salesrobot'] = chunk;
+          else if (/salesrobot|how can salesrobot/.test(h2Text)) chunkMap['salesrobot'] = chunk;
           else if (/faq|frequently|question/.test(h2Text)) chunkMap['faq'] = chunk;
           else if (/conclusion/.test(h2Text)) chunkMap['conclusion'] = chunk;
-          else if (/why switch|why look|alternative/.test(h2Text)) chunkMap['why-switch'] = chunk;
+          else if (/why switch|why look/.test(h2Text)) chunkMap['why-switch'] = chunk;
           else if (/verdict|triumphs|final/.test(h2Text)) chunkMap['conclusion'] = chunkMap['conclusion'] ? chunkMap['conclusion'] + chunk : chunk;
-          else chunkMap[h2Text.slice(0, 20)] = chunk;
+          else {
+            // Preserve unrecognised sections — they are original content (reviews, how-to-use etc.)
+            // Store by index so they don't overwrite each other
+            const key = 'preserved-' + Object.keys(chunkMap).filter(k => k.startsWith('preserved-')).length;
+            chunkMap[key] = chunk;
+          }
         }
 
         // Flag sections that need changes
         const salesrobotSectionExists = !!chunkMap['salesrobot'];
 
-        setSections(sectionIds.map(id => {
+        // Build sections list — include recognised sections + preserved originals
+        const preservedKeys = Object.keys(chunkMap).filter(k => k.startsWith('preserved-'));
+        const preservedSections = preservedKeys.map((key, i) => ({
+          id: key,
+          label: (() => {
+            const h2 = (chunkMap[key].match(/<h2[^>]*>([\s\S]*?)<\/h2>/i)?.[1] ?? '').replace(/<[^>]+>/g, '').trim();
+            return h2.slice(0, 50) || 'Original section';
+          })(),
+          status: 'skipped' as const,
+          html: chunkMap[key],
+        }));
+
+        const mainSections = sectionIds.map(id => {
           const existingHtml = chunkMap[id] ?? '';
           const isFlagged =
             (id === 'pricing' && pricingChanged) ||
             (id === 'features' && featuresChanged) ||
             (id === 'tldr' && (pricingChanged || featuresChanged)) ||
-            (id === 'salesrobot') || // always rewrite SalesRobot section
+            (id === 'salesrobot') ||
             (id === 'conclusion' && pricingChanged) ||
             (id === 'faq' && hasNewH2s);
           const isNew = !existingHtml && id !== 'intro';
@@ -929,7 +956,7 @@ export default function StudioPage() {
           return {
             id,
             label: SECTION_LABELS[id] ?? id,
-            status: isNew ? 'pending' : isFlagged ? 'flagged' : 'skipped',
+            status: isNew ? 'pending' as const : isFlagged ? 'flagged' as const : 'skipped' as const,
             flagReason: isFlagged
               ? id === 'salesrobot' ? 'Always updated with latest SalesRobot features'
               : id === 'pricing' ? 'Pricing changes found'
@@ -941,7 +968,16 @@ export default function StudioPage() {
               : undefined,
             html: existingHtml,
           };
-        }));
+        });
+
+        // Insert preserved sections before SalesRobot/FAQ/Conclusion
+        const insertBefore = ['salesrobot', 'faq', 'conclusion'];
+        const insertIdx = mainSections.findIndex(s => insertBefore.includes(s.id));
+        const allSections = insertIdx >= 0
+          ? [...mainSections.slice(0, insertIdx), ...preservedSections, ...mainSections.slice(insertIdx)]
+          : [...mainSections, ...preservedSections];
+
+        setSections(allSections);
 
         // Add warning about images/links
         const hasImages = bodyHtml.includes('<img');
