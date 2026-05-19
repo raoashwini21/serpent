@@ -429,15 +429,30 @@ Rules:
     const srH2Match = updatedHtml.match(srH2Regex);
 
     if (srH2Match) {
-      // Found a SalesRobot H2 — rewrite from that point to the next H2
+      // Rewrite only the SalesRobot section — find its exact boundaries
       const srH2Index = updatedHtml.indexOf(srH2Match[0]);
       const afterSrH2 = updatedHtml.slice(srH2Index + srH2Match[0].length);
-      const nextH2Match = afterSrH2.match(/<h2[^>]*>/i);
-      const srSectionEnd = nextH2Match
-        ? srH2Index + srH2Match[0].length + afterSrH2.indexOf(nextH2Match[0])
-        : updatedHtml.length;
 
-      const newSrHtml = promptSalesRobot(brief, toolName);
+      // Find next H2 that is NOT part of the SalesRobot section
+      const nextH2Matches = [...afterSrH2.matchAll(/<h2[^>]*>/gi)];
+      let srSectionEnd = srH2Index + srH2Match[0].length;
+      for (const m of nextH2Matches) {
+        const closeIdx = afterSrH2.indexOf('</h2>', m.index as number);
+        const headingText = afterSrH2.slice(m.index as number, closeIdx + 5).replace(/<[^>]+>/g, '').toLowerCase();
+        // Stop at first H2 that doesnt include 'salesrobot' — thats the next real section
+        if (!headingText.includes('salesrobot')) {
+          srSectionEnd = srH2Index + srH2Match[0].length + (m.index as number);
+          break;
+        }
+      }
+      // If no next H2 found, limit replacement to 2500 chars to avoid eating rest of blog
+      if (srSectionEnd === srH2Index + srH2Match[0].length) {
+        srSectionEnd = srH2Index + srH2Match[0].length + Math.min(afterSrH2.length, 2500);
+      }
+
+      const before = updatedHtml.slice(0, srH2Index);
+      const after = updatedHtml.slice(srSectionEnd);
+
       const srRes = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY!, 'anthropic-version': '2023-06-01' },
@@ -446,7 +461,7 @@ Rules:
           max_tokens: 800,
           stream: false,
           system: MASTER_SYSTEM_PROMPT,
-          messages: [{ role: 'user', content: newSrHtml }],
+          messages: [{ role: 'user', content: promptSalesRobot(brief, toolName) }],
         }),
       });
       if (srRes.ok) {
@@ -456,7 +471,7 @@ Rules:
           .map((b: { text: string }) => b.text)
           .join('');
         if (newSrSection.trim()) {
-          updatedHtml = updatedHtml.slice(0, srH2Index) + newSrSection + '\n' + updatedHtml.slice(srSectionEnd);
+          updatedHtml = before + newSrSection + '\n' + after;
         }
       }
     }
