@@ -932,15 +932,15 @@ export default function StudioPage() {
 
         // Build sections list — include recognised sections + preserved originals
         const preservedKeys = Object.keys(chunkMap).filter(k => k.startsWith('preserved-'));
-        const preservedSections = preservedKeys.map((key, i) => ({
-          id: key,
-          label: (() => {
-            const h2 = (chunkMap[key].match(/<h2[^>]*>([\s\S]*?)<\/h2>/i)?.[1] ?? '').replace(/<[^>]+>/g, '').trim();
-            return h2.slice(0, 50) || 'Original section';
-          })(),
-          status: 'skipped' as const,
-          html: chunkMap[key],
-        }));
+        const preservedSections = preservedKeys.map((key, i) => {
+          const h2Text = (chunkMap[key].match(/<h2[^>]*>([\s\S]*?)<\/h2>/i)?.[1] ?? '').replace(/<[^>]+>/g, '').trim();
+          return {
+            id: key,
+            label: h2Text.slice(0, 60) || 'Original section',
+            status: 'skipped' as const,
+            html: chunkMap[key],
+          };
+        });
 
         const mainSections = sectionIds.map(id => {
           const existingHtml = chunkMap[id] ?? '';
@@ -948,7 +948,10 @@ export default function StudioPage() {
             (id === 'pricing' && pricingChanged) ||
             (id === 'features' && featuresChanged) ||
             (id === 'tldr' && (pricingChanged || featuresChanged)) ||
-            (id === 'salesrobot') ||
+            (id === 'salesrobot' && !preservedSections.some(p =>
+            p.html.toLowerCase().includes('salesrobot') &&
+            p.html.toLowerCase().includes('alternative')
+          )) ||
             (id === 'conclusion' && pricingChanged) ||
             (id === 'faq' && hasNewH2s);
           const isNew = !existingHtml && id !== 'intro';
