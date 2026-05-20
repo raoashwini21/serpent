@@ -92,26 +92,22 @@ End with one honest sentence on value. No SalesRobot mention here.`;
 }
 
 function promptProsCons(brief: Brief, toolName: string, note?: string): string {
-  // Never use 'what is' style H2 for pros-cons — hardcode the verdict question
-  const h2 = brief.h2Changes?.find(h =>
-    /worth|pros|cons|honest|accurate|good|should|right/i.test(h.next) &&
-    !/what is|who is|how does/i.test(h.next)
-  )?.next ?? `Is ${toolName} Worth It?`;
+  const prosList = brief.confirmedFeatures?.slice(0,5).join(", ") || "the confirmed features";
+  const consList = brief.topPainPoints?.join(", ") || "the known limitations";
   return `${ctx(brief, toolName, note)}
 
 Write the pros and cons section. 200-250 words.
-H2: "${h2}"
+YOUR FIRST LINE MUST BE EXACTLY: <h2>Is ${toolName} Worth It?</h2>
+Do not write any other H2. Never reuse the features or what-is heading.
 
 <h3>What works well</h3>
-List 4-5 pros with ✅ per item as <p>. Each must relate to a confirmed feature: ${brief.confirmedFeatures?.slice(0,5).join(', ')}.
+4-5 pros with ✅ per item as individual <p> tags. Based on: ${prosList}.
 
 <h3>Watch out for</h3>
-List 4-5 cons with ❌ per item as <p>. Each must relate to a known pain point: ${brief.topPainPoints?.join(', ')}.
+4-5 cons with ❌ per item as individual <p> tags. Based on: ${consList}.
 
-No intro paragraph. No conclusion. Only the two H3 groups.`;
+No intro paragraph. No conclusion after last con.`;
 }
-
-function promptOverview(brief: Brief, toolName: string, note?: string): string {
   return `${ctx(brief, toolName, note)}
 
 Write the overview section. 150-200 words.
