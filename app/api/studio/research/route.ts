@@ -62,6 +62,26 @@ Max 5 pricing items, max 6 features. Valid JSON only.`
       return NextResponse.json({ phase: '1a', data: extractJSON(raw) });
     }
 
+    // Phase alt-tools — research alternative tools found in existing blog
+    if (phase === 'alt-tools') {
+      const { altTools } = await req.clone().json().catch(() => ({ altTools: [] })) as { altTools: string[] };
+      if (!altTools?.length) return NextResponse.json({ phase: 'alt-tools', data: {} });
+
+      const results: Record<string, { pricing: string; keyChange: string }> = {};
+      for (const tool of altTools.slice(0, 4)) { // max 4 tools
+        try {
+          const raw = await claudeSearch(
+            `Search "${tool} pricing 2026". Get current plan names and prices only.
+Return ONLY: { "pricing": "e.g. Free, Starter $X/mo, Pro $Y/mo", "changed": "what changed vs older pricing if anything" }
+Valid JSON only.`
+          );
+          const data = extractJSON(raw) as { pricing?: string; changed?: string };
+          results[tool] = { pricing: data.pricing ?? '', keyChange: data.changed ?? '' };
+        } catch { results[tool] = { pricing: '', keyChange: '' }; }
+      }
+      return NextResponse.json({ phase: 'alt-tools', data: results });
+    }
+
     // Phase 1b — G2 and Capterra ratings and reviews
     if (phase === '1b') {
       const raw = await claudeSearch(
