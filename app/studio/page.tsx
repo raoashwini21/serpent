@@ -1022,7 +1022,7 @@ export default function StudioPage() {
             usedH2s.add(match.next);
           }
         }
-        // Collect PAA questions that didn't map to any section — add to FAQ
+        // Collect ALL PAA questions that didn't map to any section — add to FAQ
         const mappedH2s = new Set(Object.values(h2Map));
         const unmappedPAA = (json.brief.h2Changes ?? [])
           .filter((h: {next: string; isNew: boolean}) =>
@@ -1030,13 +1030,12 @@ export default function StudioPage() {
             h.next.includes('?') &&
             !/salesrobot|conclusion|faq|frequently/i.test(h.next)
           )
-          .map((h: {next: string}) => h.next)
-          .slice(0, 4);
+          .map((h: {next: string}) => h.next);
 
-        // Merge into faqQuestions
+        // Merge all into faqQuestions — no cap
         if (unmappedPAA.length > 0) {
           const existing = json.brief.faqQuestions ?? [];
-          json.brief.faqQuestions = [...new Set([...existing, ...unmappedPAA])].slice(0, 6);
+          json.brief.faqQuestions = [...new Set([...existing, ...unmappedPAA])];
         }
 
         setSections(sectionIds.map(id => ({
