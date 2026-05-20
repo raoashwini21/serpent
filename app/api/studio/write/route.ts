@@ -51,7 +51,7 @@ Say what this review covers. Do not list features or pros/cons.`;
 
 function promptWhatIs(brief: Brief, toolName: string, note?: string): string {
   const h2 = brief.h2Changes?.find(h =>
-    /what is|who is/i.test(h.next)
+    /what is|who is/i.test(h.next) && !/what does|what can/i.test(h.next)
   )?.next ?? `What Is ${toolName} and Who Is It For?`;
   return `${ctx(brief, toolName, note)}
 
@@ -63,7 +63,9 @@ Do not list all features — that's the next section.`;
 }
 
 function promptFeatures(brief: Brief, toolName: string, note?: string): string {
-  const h2 = h2For(brief, ['feature', 'capabilit', 'what does', 'how does', 'work'], `What Does ${toolName} Actually Do?`);
+  const h2 = brief.h2Changes?.find(h =>
+    /what does|how does|feature|capabilit/i.test(h.next) && !/what is|who is/i.test(h.next)
+  )?.next ?? `What Does ${toolName} Actually Do?`;
   const featureList = brief.confirmedFeatures?.length
     ? `Cover ONLY these confirmed features: ${brief.confirmedFeatures.slice(0, 5).join(', ')}.`
     : `No feature list from research. Write about core functionality based on keyword: ${brief.targetKeywords?.[0] ?? toolName}.`;
