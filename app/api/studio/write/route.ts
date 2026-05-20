@@ -315,7 +315,7 @@ function extractJSONArray(raw: string): { find: string; replace: string }[] {
 
 // ── POST handler ──────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
-  const { sectionId, brief, toolName, blogType, existingSectionHtml = '', _note } = await req.json();
+  const { sectionId, brief, toolName, blogType, existingSectionHtml = '', _note, altToolsData = {} } = await req.json();
 
   // UPDATE MODE — find/replace, non-streaming
   if (sectionId === 'full-update' && existingSectionHtml) {
@@ -433,6 +433,42 @@ Rules:
       { find: "Affordable Pricing: One of the standout advantages of Salesrobot is its pricing model. At just $99 per month, it presents a significantly more affordable option than Ongage, which starts at $399 monthly.", replace: "Affordable Pricing: SalesRobot offers transparent pricing from $59/month, significantly more affordable than most enterprise tools." },
     ];
     updatedHtml = applyFindReplace(updatedHtml, srPricingPatterns);
+
+    // Patch other tools' pricing from alt-tools research
+    const altData = altToolsData as Record<string, {pricing: string; keyChange: string}>;
+    for (const [tool, data] of Object.entries(altData)) {
+      if (!data.pricing) continue;
+      // Let Claude find exact strings to replace for this tool
+      const altPatchPrompt = `Blog excerpt (find exact text about ${tool}):
+${updatedHtml.replace(/<[^>]+>/g, ' ').slice(0, 3000)}
+
+CONFIRMED CURRENT ${tool} PRICING: ${data.pricing}
+${data.keyChange ? `What changed: ${data.keyChange}` : ''}
+
+Find any outdated ${tool} pricing in the blog and return find/replace pairs.
+Return ONLY: [{"find": "exact text", "replace": "corrected text"}]
+Max 5 pairs. Return [] if nothing needs changing. Valid JSON only.`;
+
+      try {
+        const altRes = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY!, 'anthropic-version': '2023-06-01' },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 400,
+            stream: false,
+            system: 'You are a fact-checker. Return only valid JSON arrays.',
+            messages: [{ role: 'user', content: altPatchPrompt }],
+          }),
+        });
+        if (altRes.ok) {
+          const altData2 = await altRes.json();
+          const altRaw = altData2.content.filter((b: {type:string}) => b.type === 'text').map((b: {text:string}) => b.text).join('');
+          const altPairs = extractJSONArray(altRaw);
+          if (altPairs.length > 0) updatedHtml = applyFindReplace(updatedHtml, altPairs);
+        }
+      } catch { /* non-fatal */ }
+    }
 
     // Add AI Appointment Setter mention if not present
     if (!updatedHtml.toLowerCase().includes('ai appointment setter') && updatedHtml.toLowerCase().includes('salesrobot')) {
