@@ -72,10 +72,10 @@ Base everything strictly on the research data provided. Valid JSON only.`, syste
   }
 
   // ── Call 2: Generate structure (H1, H2s, keywords, FAQ) ───────────────
-  // Only use PAA questions that are actually about the tool, not generic phrases
-  const paaQuestions = (research.paaQuestions ?? [])
-    .filter(q => q.includes('?') && q.toLowerCase().includes(toolName.toLowerCase()))
-    .slice(0, 5).join('\n');
+  // All PAA questions about the tool — no limit
+  const allPaaQuestions = (research.paaQuestions ?? [])
+    .filter(q => q.includes('?') && q.toLowerCase().includes(toolName.toLowerCase()));
+  const paaQuestions = allPaaQuestions.join('\n');
   const serpH2s = (research.serpH2s ?? []).filter(h => /^(what|how|is|does|can|why|which|do|should)/i.test(h.trim())).slice(0, 4).join('\n');
   const gscContext = hasGsc ? `GSC opportunities:\n${buildGscSummary(gscRows)}` : `PAA questions:\n${paaQuestions || 'none'}\nCompetitor H2s:\n${serpH2s || 'none'}`;
   const isUpdate = existingH2s.length > 0;
@@ -132,6 +132,13 @@ Valid JSON only.`, system, 1200);
   }
 
   // Merge facts + structure into final brief
-  const brief = { ...structure, ...facts };
+  const brief = { ...structure, ...facts } as Record<string, unknown>;
+
+  // Inject ALL PAA questions directly into faqQuestions — don't rely on Claude filtering
+  if (allPaaQuestions.length > 0) {
+    const existing = (brief.faqQuestions as string[] | undefined) ?? [];
+    brief.faqQuestions = [...new Set([...existing, ...allPaaQuestions])];
+  }
+
   return NextResponse.json({ brief });
 }
