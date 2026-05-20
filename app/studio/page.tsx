@@ -771,6 +771,7 @@ export default function StudioPage() {
   const [pushResult, setPushResult] = useState<{ slug: string; itemId: string } | null>(null);
   const [error, setError] = useState('');
   const [infoMsg, setInfoMsg] = useState('');
+  const [altToolsData, setAltToolsData] = useState<Record<string, {pricing: string; keyChange: string}>>({});
 
   // Update mode state
   const [postSearch, setPostSearch] = useState('');
@@ -934,10 +935,12 @@ export default function StudioPage() {
         const preservedKeys = Object.keys(chunkMap).filter(k => k.startsWith('preserved-'));
         const preservedSections = preservedKeys.map((key, i) => {
           const h2Text = (chunkMap[key].match(/<h2[^>]*>([\s\S]*?)<\/h2>/i)?.[1] ?? '').replace(/<[^>]+>/g, '').trim();
+          const hasOtherTools = /reply\.io|salesloft|apollo|outplay|lemlist|klenty|mixmax|yesware|woodpecker|mailshake/i.test(chunkMap[key]);
           return {
             id: key,
             label: h2Text.slice(0, 60) || 'Original section',
             status: 'skipped' as const,
+            flagReason: hasOtherTools ? '⚠️ Contains other tools — verify their pricing and features are current' : undefined,
             html: chunkMap[key],
           };
         });
@@ -950,7 +953,7 @@ export default function StudioPage() {
             (id === 'tldr' && (pricingChanged || featuresChanged)) ||
             (id === 'salesrobot' && !preservedSections.some(p =>
             p.html.toLowerCase().includes('salesrobot') &&
-            p.html.toLowerCase().includes('alternative')
+            (p.html.toLowerCase().includes('alternative') || p.html.length > 2000)
           )) ||
             (id === 'conclusion' && pricingChanged) ||
             (id === 'faq' && hasNewH2s);
@@ -989,6 +992,27 @@ export default function StudioPage() {
           setInfoMsg(
             `Images${hasLinks ? ' and links' : ''} from the original blog are preserved in unchanged sections. They will appear in the final review.`
           );
+        }
+
+        // Research alt tools found in preserved sections
+        const altToolPattern = /reply\.io|salesloft|apollo\.io|outplay|lemlist|klenty|mixmax|yesware|woodpecker|mailshake|groove|outreach|hubspot|salesloft|pipedrive/gi;
+        const altToolsFound = new Set<string>();
+        for (const ps of preservedSections) {
+          const matches = ps.html.match(altToolPattern) ?? [];
+          matches.forEach(m => {
+            const name = m.toLowerCase();
+            if (name !== toolName.toLowerCase()) altToolsFound.add(m);
+          });
+        }
+        if (altToolsFound.size > 0) {
+          const uniqueTools = [...altToolsFound].slice(0, 4);
+          fetch('/api/studio/research', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ toolName, blogType, phase: 'alt-tools', altTools: uniqueTools }),
+          }).then(r => r.json()).then(d => {
+            if (d.data) setAltToolsData(d.data);
+          }).catch(() => {});
         }
 
       } else {
