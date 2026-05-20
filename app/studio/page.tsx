@@ -995,8 +995,8 @@ export default function StudioPage() {
         // Match each section to its brief H2 suggestion for the label
         const h2Map: Record<string, string> = {};
         const sectionToKeyword: Record<string, string[]> = {
-          'what-is':    ['what is', 'what'],
-          'features':   ['feature', 'capabilit', 'what does', 'key'],
+          'what-is':    ['what is', 'who is'],
+          'features':   ['what does', 'how does', 'feature', 'capabilit', 'key'],
           'pricing':    ['pric', 'cost', 'plan'],
           'pros-cons':  ['worth', 'pros', 'cons', 'honest'],
           'overview':   ['overview'],
@@ -1010,11 +1010,17 @@ export default function StudioPage() {
           'tips-list':  ['tip', 'strateg'],
           'how-to-steps': ['how to', 'step', 'guide'],
         };
+        // Each H2 assigned to only one section — first match wins, then mark as used
+        const usedH2s = new Set<string>();
         for (const [sId, keywords] of Object.entries(sectionToKeyword)) {
           const match = json.brief.h2Changes.find((h: {next: string}) =>
+            !usedH2s.has(h.next) &&
             keywords.some(kw => h.next.toLowerCase().includes(kw))
           );
-          if (match) h2Map[sId] = match.next;
+          if (match) {
+            h2Map[sId] = match.next;
+            usedH2s.add(match.next);
+          }
         }
         setSections(sectionIds.map(id => ({
           id,
