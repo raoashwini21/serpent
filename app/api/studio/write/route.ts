@@ -108,6 +108,7 @@ Do not write any other H2. Never reuse the features or what-is heading.
 
 No intro paragraph. No conclusion after last con.`;
 }
+function promptOverview(brief: Brief, toolName: string, note?: string): string {
   return `${ctx(brief, toolName, note)}
 
 Write the overview section. 150-200 words.
