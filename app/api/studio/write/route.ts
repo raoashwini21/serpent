@@ -222,7 +222,7 @@ Then add exactly:
 
 function promptFaq(brief: Brief, toolName: string, note?: string): string {
   const questions = (brief.faqQuestions?.length ?? 0) > 0
-    ? brief.faqQuestions!.slice(0, 5).join('\n')
+    ? brief.faqQuestions!.join('\n')
     : [
         `What is ${toolName}?`,
         `How does ${toolName} work?`,
@@ -233,16 +233,16 @@ function promptFaq(brief: Brief, toolName: string, note?: string): string {
 
   return `${ctx(brief, toolName, note)}
 
-Write the FAQ section. 200-250 words.
+Write the FAQ section.
 H2: "Frequently Asked Questions"
-Write exactly 4-5 Q&As using ONLY these questions (copy them exactly):
+Write one Q&A for EACH of these questions (copy them exactly — all of them):
 ${questions}
 
 Format each as:
 <h3>[Question exactly as written above]</h3>
 <p>[Direct answer, 40-60 words]</p>
 
-No intro text before first H3. No text after last answer.`;
+No intro text before first H3. No text after last answer. Write ALL questions provided — do not skip any.`;
 }
 
 function promptConclusion(brief: Brief, toolName: string, note?: string): string {
@@ -544,7 +544,7 @@ Clean HTML only.`;
     headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY!, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 1200,
+      max_tokens: sectionId === 'faq' ? 2000 : 1200,
       stream: true,
       system: MASTER_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: prompt }],
